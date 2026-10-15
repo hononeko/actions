@@ -1,0 +1,24 @@
+# Agent & Contributor Guidelines (`AGENTS.md`)
+
+Shared composite actions consumed by other repositories. A change here reaches every consumer through Renovate, so changes to inputs, outputs or rules must stay backwards compatible. If one can't, it's a `feat!:`.
+
+## 1. Quality Gates
+
+Before committing, all of these must pass:
+
+```bash
+tests/release-notes.test.sh
+shellcheck release-notes/release-notes.sh tests/*.sh
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+```
+
+## 2. Rules
+
+* **Composite actions only:** each action is a folder with an `action.yml`. Scripts sit next to it and are run through `$GITHUB_ACTION_PATH`.
+* **Pinned dependencies:** third-party actions are pinned by commit SHA with a version comment.
+* **Inputs through `env`:** never interpolate `${{ inputs.* }}` into `run:` scripts; pass inputs as environment variables.
+* **One version rule set:** `version/action.yml` and `release-notes/release-notes.sh` share the breaking-change rule (`!:`, `BREAKING CHANGE:`, `BREAKING:`). Change both together.
+
+## 3. Commits & Releases
+
+[Conventional Commits](https://www.conventionalcommits.org/), using the rules in the README. Every push to `main` that warrants a version is released as `vX.Y.Z` with grouped release notes.

@@ -1,0 +1,75 @@
+name: Version
+description: >-
+  The next release version from Conventional Commits, with the same rules in every repository: `type!:` or a
+  BREAKING CHANGE / BREAKING footer bumps the major version, `feat` the minor, every other type the patch, and
+  docs/test commits nothing. Also names a release candidate for the current commit. Needs a full-history checkout
+  (`fetch-depth: 0`).
+
+inputs:
+  tag-prefix:
+    description: Prefix of the repository's release tags, e.g. "v" for v1.2.3; empty for 1.2.3
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: Next release version, e.g. 1.2.3
+    value: ${{ steps.version.outputs.version }}
+  version-tag:
+    description: Git tag for the next release, e.g. v1.2.3
+    value: ${{ steps.version.outputs.version_tag }}
+  version-type:
+    description: major, minor, patch, or none when there's nothing to release
+    value: ${{ steps.version.outputs.version_type }}
+  previous-tag:
+    description: The last release's tag; empty before the first release
+    value: ${{ steps.rc.outputs.previous_tag }}
+  rc-version:
+    description: Release-candidate version of this commit, e.g. 1.2.3-rc.4
+    value: ${{ steps.rc.outputs.rc_version }}
+  commit-tag:
+    description: Tag identifying this commit, e.g. sha-1a2b3c4
+    value: ${{ steps.rc.outputs.commit_tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Calculate Semantic Version
+      id: version
+      uses: PaulHatch/semantic-version@4d6da96a9bc3116da3613309a11ff75fba58eb8d # v6.0.4
+      with:
+        change_path: "."
+        bump_each_commit: false
+        search_commit_body: true
+        tag_prefix: ${{ inputs.tag-prefix }}
+        major_pattern: "/!:|BREAKING CHANGE:|BREAKING:/"
+        minor_pattern: "/feat(\\(.+\\))?:/"
+        # docs: and test: commits never bump the version; every other type bumps at least the patch. A breaking
+        # docs!: still matches major_pattern.
+        ignore_commits_pattern: "/^(docs|test)(\\(.+\\))?:/"
+        version_format: "${major}.${minor}.${patch}"
+
+    # N counts every commit since the last release, so each new commit gets a new RC number. The action's own
+    # `increment` skips docs:/test: commits and could repeat one.
+    - name: Release candidate
+      id: rc
+      shell: bash
+      env:
+        TAG_PREFIX: ${{ inputs.tag-prefix }}
+        VERSION: ${{ steps.version.outputs.version }}
+      run: |
+        previous=$(git describe --tags --abbrev=0 --match "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || true)
+        if [ -n "$previous" ]; then n=$(git rev-list --count "$previous..HEAD"); else n=$(git rev-list --count HEAD); fi
+        sha=$(git rev-parse --short=7 HEAD)
+        {
+          echo "previous_tag=$previous"
+          echo "rc_version=$VERSION-rc.$n"
+          echo "commit_tag=sha-$sha"
+        } >> "$GITHUB_OUTPUT"
+        echo "Next version $VERSION (release candidate $VERSION-rc.$n, sha-$sha); last release: ${previous:-none}"
+
+    # version_type is "none" when every commit since the last tag was ignored, or HEAD is already tagged.
+    - name: Report nothing to release
+      if: steps.version.outputs.version_type == 'none'
+      shell: bash
+      run: echo "::notice title=Nothing to release::No version-bumping commits since the last release (only docs:/test:, or HEAD is already tagged)."

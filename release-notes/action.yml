@@ -1,0 +1,61 @@
+name: Release notes
+description: >-
+  Markdown release notes for the commits since the last release, grouped by Conventional Commit type: 💥 Breaking
+  changes, 🚀 Features, 🐛 Bug fixes, 👷 CI and 📦 Others. Each entry links its pull request. Needs a full-history
+  checkout (`fetch-depth: 0`).
+
+inputs:
+  previous-tag:
+    description: The last release's tag; empty for the first release (every commit up to `ref`)
+    required: false
+    default: ""
+  ref:
+    description: The commit being released
+    required: false
+    default: HEAD
+  tag:
+    description: "The release's own tag, for the Full Changelog link (default: the commit)"
+    required: false
+    default: ""
+  path:
+    description: File to write the notes to
+    required: false
+    default: release-notes.md
+  summary:
+    description: Also add the notes to the job summary under this heading; empty to skip
+    required: false
+    default: Release notes
+  token:
+    description: >-
+      Token to look up the pull request of commits whose subject doesn't end in "(#N)" (rebase merges); empty to
+      link those commits instead
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  path:
+    description: The file the notes were written to
+    value: ${{ inputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate release notes
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PREVIOUS_TAG: ${{ inputs.previous-tag }}
+        REF: ${{ inputs.ref }}
+        TAG: ${{ inputs.tag }}
+        NOTES_PATH: ${{ inputs.path }}
+        SUMMARY: ${{ inputs.summary }}
+      run: |
+        "$GITHUB_ACTION_PATH/release-notes.sh" "$PREVIOUS_TAG" "$REF" "$TAG" > "$NOTES_PATH"
+        cat "$NOTES_PATH"
+        if [ -n "$SUMMARY" ]; then
+          {
+            echo "## $SUMMARY"
+            echo
+            cat "$NOTES_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi

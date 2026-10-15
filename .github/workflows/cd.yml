@@ -1,0 +1,106 @@
+name: Release
+
+# Every push to main that warrants a new version releases it: a vX.Y.Z tag and a GitHub Release with grouped notes.
+# Consumers pin the actions by commit SHA, and Renovate follows these releases. Dispatch with dry_run to see the
+# version and notes without releasing.
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Show the next version and its release notes without releasing
+        type: boolean
+        default: false
+
+# Never cancel a release mid-flight: a run cancelled after pushing its tag would leave a tag without a release.
+# Superseded runs skip themselves at the tip check.
+concurrency:
+  group: cd-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    permissions:
+      contents: read
+
+  plan:
+    name: Plan Release
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version_tag: ${{ steps.version.outputs.version-tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Version
+        id: version
+        uses: ./version
+        with:
+          tag-prefix: v
+
+      - name: Release notes
+        uses: ./release-notes
+        with:
+          previous-tag: ${{ steps.version.outputs.previous-tag }}
+          tag: ${{ steps.version.outputs.version-tag }}
+          summary: Release notes for ${{ steps.version.outputs.version-tag }}
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-notes
+          path: release-notes.md
+
+      # Releases only from main, only from its tip (a newer push releases instead), and only a version not yet
+      # tagged.
+      - name: Decide whether to release
+        id: decide
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          VERSION_TAG: ${{ steps.version.outputs.version-tag }}
+          VERSION_TYPE: ${{ steps.version.outputs.version-type }}
+        run: |
+          release=true
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "::notice::Dry run: not releasing $VERSION_TAG"; release=false
+          elif [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::notice::Releases are published from main only"; release=false
+          elif [ "$VERSION_TYPE" = "none" ]; then
+            release=false
+          else
+            git fetch -q origin main --tags
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+              echo "::warning::$GITHUB_SHA is no longer the tip of main; the newer push releases instead"; release=false
+            elif git rev-parse -q --verify "refs/tags/$VERSION_TAG" >/dev/null; then
+              echo "::warning::$VERSION_TAG already exists; not releasing it again"; release=false
+            fi
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Tag & Release
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION_TAG: ${{ needs.plan.outputs.version_tag }}
+    steps:
+      - name: Download release notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-notes
+
+      - name: Tag & create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$VERSION_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION_TAG" --notes-file release-notes.md
