@@ -25,6 +25,9 @@ commit "docs: explain the config"
 commit "feat(api)!: drop the v1 endpoints (#16)"
 commit "refactor: split the parser (#17)" "BREAKING CHANGE: the parser package moved"
 commit "test: cover the parser"
+commit "feat: describe the rules (#18)" "Mentions type!: and BREAKING CHANGE: inline, which isn't a footer."
+commit "fix!(legacy): old bang placement (#19)"
+commit "chore: rename the config (#20)" "BREAKING-CHANGE: config.yml is now settings.yml"
 
 export GITHUB_REPOSITORY=owner/repo
 unset GH_TOKEN
@@ -48,10 +51,13 @@ check "groups commits since the last release" "$(
 
 * feat(api)!: drop the v1 endpoints #16
 * refactor: split the parser #17
+* fix!(legacy): old bang placement #19
+* chore: rename the config #20
 
 ## 🚀 Features
 
 * feat(ui): add a dark theme #12
+* feat: describe the rules #18
 
 ## 🐛 Bug fixes
 
@@ -64,8 +70,8 @@ check "groups commits since the last release" "$(
 ## 📦 Others
 
 * chore(deps): update module foo to v2 #15
-* docs: explain the config $(git rev-parse --short=7 HEAD~3)
-* test: cover the parser $(git rev-parse --short=7 HEAD)
+* docs: explain the config $(git rev-parse --short=7 HEAD~6)
+* test: cover the parser $(git rev-parse --short=7 HEAD~3)
 
 **Full Changelog**: https://github.com/owner/repo/compare/v1.0.0...v2.0.0
 EOF
