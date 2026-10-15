@@ -116,11 +116,15 @@ jobs:
           echo src/ >> .git/info/exclude
           git config user.name test
           git config user.email test@example.com
-          git commit -q --allow-empty -m "feat: first"
+          # semantic-version skips commits that change no files, so each one changes a file.
+          change() { echo "$1" >> changes.txt; git add changes.txt; }
+          change first
+          git commit -q -m "feat: first"
           git tag v1.2.3
           IFS='|' read -ra lines <<<"$SUBJECTS"
           for subject in "${lines[@]}"; do
-            if [ -n "$BODY" ]; then git commit -q --allow-empty -m "$subject" -m "$BODY"; else git commit -q --allow-empty -m "$subject"; fi
+            change "$subject"
+            if [ -n "$BODY" ]; then git commit -q -m "$subject" -m "$BODY"; else git commit -q -m "$subject"; fi
           done
           git log --format='%h %s%n%b'
 
