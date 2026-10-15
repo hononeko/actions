@@ -6,8 +6,9 @@ Shared GitHub Actions for versioning and releasing my repositories from [Convent
 |---|---|
 | [`version`](version/action.yml) | The next release version, and a release-candidate name for the current commit |
 | [`release-notes`](release-notes/action.yml) | Markdown release notes, grouped by commit type, each entry linking its PR |
+| [`smoke-test`](smoke-test/action.yml) | Boots a container image, waits for an HTTP answer, and checks its status and memory |
 
-Both need a full-history checkout (`fetch-depth: 0`).
+`version` and `release-notes` need a full-history checkout (`fetch-depth: 0`).
 
 ## Usage
 
@@ -60,11 +61,32 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
 - **Entries:** each entry is `type(scope): subject #PR`, oldest first, and empty sections are left out. The notes end with a **Full Changelog** compare link.
 - **Finding the PR:** the PR number comes from the `(#N)` a squash merge adds to the subject. For a rebase merge, the action looks the PR up on GitHub using `token`, which defaults to the workflow's token. A commit pushed without a PR links the commit itself.
 
+## Smoke test
+
+```yaml
+- uses: docker/build-push-action@<sha> # v7
+  with:
+    load: true
+    tags: smoke:amd64
+
+- uses: vehkiya/actions/smoke-test@<sha> # vX.Y.Z
+  with:
+    image: smoke:amd64
+    port: "9090"
+    path: /healthz
+    status: "200" # an extended regex, e.g. 2..|403
+    env: |
+      SOME_REQUIRED_SETTING=smoke
+    max-memory-mib: "32"
+```
+
+It fails when the container exits or doesn't answer within `timeout` seconds (10), when the status doesn't match, or when it uses more than `max-memory-mib` (64) after startup. `started-regex` picks the app's own startup time out of its logs for the report.
+
 ## Development
 
 ```bash
 tests/release-notes.test.sh
-shellcheck release-notes/release-notes.sh tests/*.sh
+shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
 ```
 
 Every push to `main` that warrants a new version is released automatically as `vX.Y.Z` (`.github/workflows/cd.yml`).
