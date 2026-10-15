@@ -17,7 +17,7 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
 * **Composite actions only:** each action is a folder with an `action.yml`. Scripts sit next to it and are run through `$GITHUB_ACTION_PATH`.
 * **Pinned dependencies:** third-party actions are pinned by commit SHA with a version comment.
 * **Inputs through `env`:** never interpolate `${{ inputs.* }}` into `run:` scripts; pass inputs as environment variables.
-* **One version rule set:** `version/action.yml` and `release-notes/release-notes.sh` share the breaking-change rule (`!:`, `BREAKING CHANGE:`, `BREAKING:`). Change both together.
+* **One version rule set:** `version/action.yml` and `release-notes/release-notes.sh` share the breaking-change rule (a `!` in the header, or a `BREAKING CHANGE:` footer line). Change both together, along with the tests.
 
 ## 3. Commits & Releases
 

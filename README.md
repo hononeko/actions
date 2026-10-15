@@ -35,10 +35,12 @@ Pin both actions to the same commit SHA; Renovate's `helpers:pinGitHubActionDige
 
 | Commit | Bump |
 |---|---|
-| `type!:`, or a `BREAKING CHANGE:` / `BREAKING:` footer | major |
-| `feat:` | minor |
+| a `!` in the header (`type!:`, `type(scope)!:`), or a `BREAKING CHANGE:` footer line | major |
+| `feat:` / `feat(scope):` | minor |
 | `docs:`, `test:` | none |
 | every other type (`fix:`, `refactor:`, `chore:`, `ci:`, …) | patch |
+
+Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKING-CHANGE:`) count as breaking. A body that merely mentions them doesn't.
 
 `version` outputs:
 - `version`, `version-tag`, and `version-type`. `version-type` is `none` when there's nothing to release.
@@ -48,7 +50,7 @@ Pin both actions to the same commit SHA; Renovate's `helpers:pinGitHubActionDige
 ## Release notes
 
 ```
-## 💥 Breaking changes   type!: or a BREAKING CHANGE: / BREAKING: footer
+## 💥 Breaking changes   type!: or a BREAKING CHANGE: footer
 ## 🚀 Features           feat
 ## 🐛 Bug fixes          fix
 ## 👷 CI                 ci

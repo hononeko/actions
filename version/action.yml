@@ -1,8 +1,8 @@
 name: Version
 description: >-
-  The next release version from Conventional Commits, with the same rules in every repository: `type!:` or a
-  BREAKING CHANGE / BREAKING footer bumps the major version, `feat` the minor, every other type the patch, and
-  docs/test commits nothing. Also names a release candidate for the current commit. Needs a full-history checkout
+  The next release version from Conventional Commits, with the same rules in every repository: a `!` in the header
+  or a BREAKING CHANGE footer bumps the major version, `feat` the minor, every other type the patch, and docs/test
+  commits nothing. Also names a release candidate for the current commit. Needs a full-history checkout
   (`fetch-depth: 0`).
 
 inputs:
@@ -42,8 +42,11 @@ runs:
         bump_each_commit: false
         search_commit_body: true
         tag_prefix: ${{ inputs.tag-prefix }}
-        major_pattern: "/!:|BREAKING CHANGE:|BREAKING:/"
-        minor_pattern: "/feat(\\(.+\\))?:/"
+        # Breaking: a "!" in the header (type!: or type(scope)!:), or a BREAKING CHANGE: / BREAKING-CHANGE: footer
+        # at the start of a line. Only those count, so a body that merely mentions them doesn't. The subject and body
+        # are matched separately, and (^|\n) stands in for a multiline ^. release-notes.sh uses the same rule.
+        major_pattern: "/^[a-z]+(\\([^)]*\\))?!(\\([^)]*\\))?:|(^|\\n)BREAKING[ -]CHANGE:/"
+        minor_pattern: "/^feat(\\([^)]*\\))?:/"
         # docs: and test: commits never bump the version; every other type bumps at least the patch. A breaking
         # docs!: still matches major_pattern.
         ignore_commits_pattern: "/^(docs|test)(\\(.+\\))?:/"
