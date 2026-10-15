@@ -48,9 +48,11 @@ for sha in $commits; do
     if [ -n "$pr" ]; then entry="* $subject #$pr"; else entry="* $subject ${sha::7}"; fi
   fi
 
-  # The version action's major rule: "!" before the header's colon, or a footer line starting BREAKING CHANGE:.
-  # type!(scope): is accepted too, as older commits used it.
-  if [[ $subject =~ ^[a-z]+(\([^\)]*\))?!(\([^\)]*\))?: ]] || grep -qE '^BREAKING[ -]CHANGE:' <<<"$body"; then
+  # The version action's major rule, matched the way semantic-version does: the header pattern ("!" before the
+  # colon; type!(scope): too, as older commits used it) against the start of the subject and of the body, and a
+  # BREAKING CHANGE: footer against any body line.
+  bang='^[a-z]+(\([^)]*\))?!(\([^)]*\))?:'
+  if [[ $subject =~ $bang || $body =~ $bang ]] || grep -qE '^BREAKING[ -]CHANGE:' <<<"$body"; then
     breaking+=("$entry")
   elif [[ $subject =~ ^feat(\(.*\))?: ]]; then
     features+=("$entry")

@@ -96,7 +96,7 @@ jobs:
             expected: 2.0.0 major
           - case: mentioned, not a footer
             subjects: "feat: explain the rules"
-            body: "type!: and BREAKING CHANGE: are mentioned here, mid-line."
+            body: "This mentions type!: and BREAKING CHANGE: mid-line."
             expected: 1.3.0 minor
           - case: feat mentioned in a fix
             subjects: "fix: revert the feat: change"
