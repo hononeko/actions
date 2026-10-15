@@ -1,0 +1,55 @@
+name: Smoke test
+description: >-
+  Boots a container image, waits until it answers HTTP, and checks the status and the memory it uses after startup.
+  Reports the time to answer, the app's own startup time and memory in the job summary.
+
+inputs:
+  image:
+    description: "Image to run, e.g. smoke:amd64 (built with `load: true`)"
+    required: true
+  port:
+    description: Container port to probe
+    required: false
+    default: "8080"
+  path:
+    description: Path to request
+    required: false
+    default: /
+  status:
+    description: Extended regex the HTTP status must match, e.g. 200 or 2..|403
+    required: false
+    default: 2..
+  env:
+    description: KEY=VALUE lines passed to the container
+    required: false
+    default: ""
+  timeout:
+    description: Seconds to wait for an answer
+    required: false
+    default: "10"
+  max-memory-mib:
+    description: Fail if the container uses more memory than this after startup
+    required: false
+    default: "64"
+  started-regex:
+    description: >-
+      Optional regex whose first number in the container logs is the app's own startup time in seconds, e.g.
+      'Application started in [0-9.]+ seconds'
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Smoke test
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        SMOKE_PORT: ${{ inputs.port }}
+        SMOKE_PATH: ${{ inputs.path }}
+        SMOKE_STATUS: ${{ inputs.status }}
+        SMOKE_ENV: ${{ inputs.env }}
+        SMOKE_TIMEOUT_S: ${{ inputs.timeout }}
+        SMOKE_MAX_MEMORY_MIB: ${{ inputs.max-memory-mib }}
+        SMOKE_STARTED_REGEX: ${{ inputs.started-regex }}
+      run: '"$GITHUB_ACTION_PATH/smoke-test.sh" "$IMAGE"'

@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: ShellCheck
-        run: shellcheck release-notes/release-notes.sh tests/*.sh
+        run: shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
 
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9 -color
@@ -141,3 +141,40 @@ jobs:
         run: |
           echo "expected $EXPECTED, got $ACTUAL"
           [ "$ACTUAL" = "$EXPECTED" ]
+
+  smoke-test:
+    name: Smoke test action
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Pull a test image
+        run: docker pull nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+
+      - name: Smoke test an answering image
+        uses: ./smoke-test
+        with:
+          image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+          port: "80"
+          status: "200"
+          env: |
+            FOO=bar
+
+      - name: Smoke test a wrong status
+        id: wrong
+        continue-on-error: true
+        uses: ./smoke-test
+        with:
+          image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+          port: "80"
+          path: /missing
+          status: "200"
+
+      - name: Check the wrong status failed
+        env:
+          OUTCOME: ${{ steps.wrong.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]

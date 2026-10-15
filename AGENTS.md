@@ -8,7 +8,7 @@ Before committing, all of these must pass:
 
 ```bash
 tests/release-notes.test.sh
-shellcheck release-notes/release-notes.sh tests/*.sh
+shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
 ```
 
