@@ -18,11 +18,11 @@ Shared GitHub Actions for versioning and releasing my repositories from [Convent
     fetch-depth: 0
 
 - id: version
-  uses: vehkiya/actions/version@<sha> # vX.Y.Z
+  uses: hononeko/actions/version@<sha> # vX.Y.Z
   with:
     tag-prefix: v # "" for tags like 1.2.3
 
-- uses: vehkiya/actions/release-notes@<sha> # vX.Y.Z
+- uses: hononeko/actions/release-notes@<sha> # vX.Y.Z
   with:
     previous-tag: ${{ steps.version.outputs.previous-tag }}
     tag: ${{ steps.version.outputs.version-tag }}
@@ -69,7 +69,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
     load: true
     tags: smoke:amd64
 
-- uses: vehkiya/actions/smoke-test@<sha> # vX.Y.Z
+- uses: hononeko/actions/smoke-test@<sha> # vX.Y.Z
   with:
     image: smoke:amd64
     port: "9090"
