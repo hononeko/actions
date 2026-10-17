@@ -14,13 +14,16 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: ShellCheck
-        run: shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
+        run: shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh tests/*.sh
 
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
 
       - name: Release notes tests
         run: tests/release-notes.test.sh
+
+      - name: Bun version resolution tests
+        run: tests/bun-setup.test.sh
 
   # Runs both actions the way a consumer would, against this repository's own history.
   actions:
@@ -176,5 +179,75 @@ jobs:
       - name: Check the wrong status failed
         env:
           OUTCOME: ${{ steps.wrong.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
+
+  # Runs bun-setup the way a consumer would, against the fixture projects in tests/fixtures.
+  bun-setup:
+    name: Bun setup action
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Bun from .bun-version
+        id: pinned
+        uses: ./bun-setup
+        with:
+          working-directory: tests/fixtures/bun-project
+
+      - name: Check the pinned setup
+        working-directory: tests/fixtures/bun-project
+        env:
+          BUN_VERSION_OUTPUT: ${{ steps.pinned.outputs.bun-version }}
+          CACHE_HIT: ${{ steps.pinned.outputs.cache-hit }}
+        run: |
+          expected=$(head -n 1 .bun-version)
+          echo "bun-version=$BUN_VERSION_OUTPUT cache-hit=$CACHE_HIT"
+          [ "$BUN_VERSION_OUTPUT" = "$expected" ]
+          [ "$(bun --version)" = "$expected" ]
+          [[ $CACHE_HIT =~ ^(true|false)$ ]]
+          [ -d node_modules/ms ]
+          # Lifecycle scripts are skipped by default
+          [ ! -e postinstall-ran ]
+
+      - name: Set up Bun with lifecycle scripts enabled
+        uses: ./bun-setup
+        with:
+          working-directory: tests/fixtures/bun-project
+          ignore-scripts: "false"
+
+      - name: Check the postinstall script ran
+        run: '[ -e tests/fixtures/bun-project/postinstall-ran ]'
+
+      - name: Set up Bun with an explicit version and no install
+        id: explicit
+        uses: ./bun-setup
+        with:
+          bun-version: 1.4.2
+          install: "false"
+
+      - name: Check the explicit version
+        env:
+          BUN_VERSION_OUTPUT: ${{ steps.explicit.outputs.bun-version }}
+          CACHE_HIT: ${{ steps.explicit.outputs.cache-hit }}
+        run: |
+          [ "$BUN_VERSION_OUTPUT" = 1.4.2 ]
+          [ "$(bun --version)" = 1.4.2 ]
+          [ "$CACHE_HIT" = false ]
+
+      - name: Set up an unpinned project
+        id: unpinned
+        continue-on-error: true
+        uses: ./bun-setup
+        with:
+          working-directory: tests/fixtures/bun-unpinned
+          install: "false"
+
+      - name: Check the unpinned project failed
+        env:
+          OUTCOME: ${{ steps.unpinned.outcome }}
         run: |
           [ "$OUTCOME" = "failure" ]

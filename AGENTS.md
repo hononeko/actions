@@ -8,8 +8,9 @@ Before committing, all of these must pass:
 
 ```bash
 tests/release-notes.test.sh
-shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
-docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+tests/bun-setup.test.sh
+shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh tests/*.sh
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 ```
 
 ## 2. Rules
