@@ -7,6 +7,7 @@ Shared GitHub Actions for versioning and releasing my repositories from [Convent
 | [`version`](version/action.yml) | The next release version, and a release-candidate name for the current commit |
 | [`release-notes`](release-notes/action.yml) | Markdown release notes, grouped by commit type, each entry linking its PR |
 | [`smoke-test`](smoke-test/action.yml) | Boots a container image, waits for an HTTP answer, and checks its status and memory |
+| [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
 
 `version` and `release-notes` need a full-history checkout (`fetch-depth: 0`).
 
@@ -82,11 +83,35 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
 
 It fails when the container exits or doesn't answer within `timeout` seconds (10), when the status doesn't match, or when it uses more than `max-memory-mib` (64) after startup. `started-regex` picks the app's own startup time out of its logs for the report.
 
+## Bun setup
+
+```yaml
+- uses: actions/checkout@<sha> # v7
+
+- id: bun
+  uses: hononeko/actions/bun-setup@<sha> # vX.Y.Z
+  # with:
+  #   bun-version: 1.4.3      # default: .bun-version, then package.json's "packageManager": "bun@X.Y.Z"
+  #   working-directory: app  # default: .
+  #   install: "false"        # only install Bun
+  #   ignore-scripts: "false" # run lifecycle scripts (only for dependencies you trust)
+
+- run: bun run test
+```
+
+- **Pinned:** the version must be exact. `latest`, `1.4` or `^1.4.0` fail with an error naming where the version came from, so builds never float. A leading `v` or `bun-v` and a Corepack `+sha512…` suffix are accepted.
+- **Locked:** dependencies are installed with `bun install --frozen-lockfile`, so a `bun.lock` that doesn't match `package.json` fails the job.
+- **Lifecycle scripts:** skipped (`--ignore-scripts`) unless `ignore-scripts` is exactly `"false"`.
+- **Cache:** `~/.bun/install/cache`, keyed on the OS, architecture, Bun version and `bun.lock`.
+
+Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when the cache matched `bun.lock` exactly).
+
 ## Development
 
 ```bash
 tests/release-notes.test.sh
-shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh tests/*.sh
+tests/bun-setup.test.sh
+shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh tests/*.sh
 ```
 
 Every push to `main` that warrants a new version is released automatically as `vX.Y.Z` (`.github/workflows/cd.yml`).

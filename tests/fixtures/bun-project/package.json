@@ -1,0 +1,10 @@
+{
+  "name": "bun-setup-fixture",
+  "private": true,
+  "scripts": {
+    "postinstall": "touch postinstall-ran"
+  },
+  "dependencies": {
+    "ms": "2.1.3"
+  }
+}
