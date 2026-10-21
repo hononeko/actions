@@ -240,7 +240,7 @@ jobs:
 ```
 
 - **Building the branch:** the image must be built from `github.event.pull_request.head.sha`, as `image.yml`'s checkout `ref` above. GitHub's default merge commit isn't on the branch.
-- **Pruning:** `prune-snapshots` deletes exactly the tags `^pr-<PR>(-sha-<7 hex>)?$`. It deletes an image once its last tag is gone, along with its platform images and attestations. An image that also has another tag keeps it. Pass `dry-run: "true"` to only log what would be deleted.
+- **Pruning:** `prune-snapshots` deletes exactly the tags `^(pr-<PR>|pr-<PR>-sha-<7 hex>)$`. It deletes an image once its last tag is gone, along with its platform images and attestations. An image that also has another tag keeps it. Pass `dry-run: "true"` to only log what would be deleted.
 - **Running pods:** a pod still running a deleted snapshot keeps its cached copy, but it can't be pulled again. Deploy snapshots only for testing, and go back to a release before the pull request closes.
 
 ## Development
