@@ -16,6 +16,12 @@ inputs:
       pull request's head commit (`ref: github.event.pull_request.head.sha`), not GitHub's merge commit.
     required: false
     default: ""
+  head-sha:
+    description: >-
+      With pr-number, the commit HEAD must be, so a snapshot is never named after another one (such as GitHub's merge
+      commit); empty to skip the check
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
 
 outputs:
   version:
@@ -75,7 +81,7 @@ runs:
         TAG_PREFIX: ${{ inputs.tag-prefix }}
         VERSION: ${{ steps.version.outputs.version }}
         PR_NUMBER: ${{ inputs.pr-number }}
-        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_HEAD_SHA: ${{ inputs.head-sha }}
       run: |
         previous=$(git describe --tags --abbrev=0 --match "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || true)
         if [ -n "$previous" ]; then n=$(git rev-list --count "$previous..HEAD"); else n=$(git rev-list --count HEAD); fi

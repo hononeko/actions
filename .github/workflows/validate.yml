@@ -79,7 +79,7 @@ jobs:
         run: |
           grep -q '^\*\*Full Changelog\*\*: https://github.com/' "$NOTES"
 
-  # The version action's snapshot outputs, checked out the way a consumer must: at the pull request's head commit.
+  # The version action's snapshot outputs, against a throwaway repository: a v1.2.3 release, then a feature.
   snapshot-version:
     name: Snapshot version
     runs-on: ubuntu-24.04
@@ -89,31 +89,45 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: src
+
+      - name: Create the fixture repository
+        id: fixture
+        run: |
+          git init -q -b main
+          echo src/ >> .git/info/exclude
+          git config user.name test
+          git config user.email test@example.com
+          change() { echo "$1" >> changes.txt; git add changes.txt; git commit -q -m "$1"; }
+          change "feat: first"
+          git tag v1.2.3
+          change "feat: second"
+          change "fix: third"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "parent=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
 
       - name: Version
         id: version
-        uses: ./version
+        uses: ./src/version
         with:
           tag-prefix: v
           pr-number: "42"
+          head-sha: ${{ steps.fixture.outputs.head }}
 
       - name: Check the snapshot outputs
         env:
-          VERSION: ${{ steps.version.outputs.version }}
           SNAPSHOT_TAG: ${{ steps.version.outputs.snapshot-tag }}
           SNAPSHOT_VERSION: ${{ steps.version.outputs.snapshot-version }}
         run: |
           echo "snapshot-tag=$SNAPSHOT_TAG snapshot-version=$SNAPSHOT_VERSION"
           [ "$SNAPSHOT_TAG" = "pr-42-sha-$(git rev-parse --short=7 HEAD)" ]
-          [[ $SNAPSHOT_VERSION =~ ^$VERSION-pr\.42\.[0-9]+$ ]]
+          [ "$SNAPSHOT_VERSION" = 1.3.0-pr.42.2 ]
           # prune-snapshots must find exactly the tags version names.
-          grep -Eq "$(prune-snapshots/snapshot-pattern.sh 42)" <<<"$SNAPSHOT_TAG"
+          grep -Eq "$(src/prune-snapshots/snapshot-pattern.sh 42)" <<<"$SNAPSHOT_TAG"
 
       - name: Version without a pull request number
         id: plain
-        uses: ./version
+        uses: ./src/version
         with:
           tag-prefix: v
 
@@ -127,39 +141,29 @@ jobs:
       - name: Version with a malformed pull request number
         id: malformed
         continue-on-error: true
-        uses: ./version
+        uses: ./src/version
         with:
+          tag-prefix: v
           pr-number: "42; true"
+          head-sha: ${{ steps.fixture.outputs.head }}
 
-      - name: Check the malformed number failed
-        env:
-          OUTCOME: ${{ steps.malformed.outcome }}
-        run: |
-          [ "$OUTCOME" = "failure" ]
-
-      # On pull requests, GitHub's merge commit isn't on the branch: naming a snapshot after it must fail.
-      - name: Check out the merge commit
-        if: github.event_name == 'pull_request'
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          git fetch -q origin "refs/pull/$PR_NUMBER/merge"
-          git checkout -q FETCH_HEAD
-
-      - name: Version of the merge commit
-        id: merge
-        if: github.event_name == 'pull_request'
+      # Stands in for GitHub's merge commit: HEAD isn't the pull request's head, so naming a snapshot must fail.
+      - name: Version of another commit
+        id: other
         continue-on-error: true
-        uses: ./version
+        uses: ./src/version
         with:
+          tag-prefix: v
           pr-number: "42"
+          head-sha: ${{ steps.fixture.outputs.parent }}
 
-      - name: Check the merge commit was refused
-        if: github.event_name == 'pull_request'
+      - name: Check both failed
         env:
-          OUTCOME: ${{ steps.merge.outcome }}
+          MALFORMED: ${{ steps.malformed.outcome }}
+          OTHER: ${{ steps.other.outcome }}
         run: |
-          [ "$OUTCOME" = "failure" ]
+          [ "$MALFORMED" = failure ]
+          [ "$OTHER" = failure ]
 
   # The version action against throwaway repositories: each case starts from a v1.2.3 release and adds commits.
   version-rules:

@@ -50,7 +50,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
 - `version`, `version-tag`, and `version-type`. `version-type` is `none` when there's nothing to release.
 - `previous-tag`.
 - `rc-version` (`X.Y.Z-rc.N`, where N counts the commits since the last release) and `commit-tag` (`sha-<commit>`), for release candidates.
-- With the `pr-number` input, `snapshot-tag` (`pr-<PR>-sha-<commit>`) and `snapshot-version` (`X.Y.Z-pr.<PR>.N`), for [branch snapshots](#branch-snapshots). On `pull_request` events, check out the pull request's head commit (`ref: ${{ github.event.pull_request.head.sha }}`). The action fails on GitHub's merge commit, because that commit isn't on the branch.
+- With the `pr-number` input, `snapshot-tag` (`pr-<PR>-sha-<commit>`) and `snapshot-version` (`X.Y.Z-pr.<PR>.N`), for [branch snapshots](#branch-snapshots). On `pull_request` events, check out the pull request's head commit (`ref: ${{ github.event.pull_request.head.sha }}`). The action fails on GitHub's merge commit, because that commit isn't on the branch. It compares `HEAD` with the `head-sha` input, which defaults to the pull request's head.
 
 ## Release notes
 
