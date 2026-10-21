@@ -126,7 +126,7 @@ Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when th
 - run: ./gradlew check
 ```
 
-- **Pinned JDK:** either a feature release (`25`), which takes its newest update so security fixes arrive on their own, or an exact version (`25.0.1`; a feature release's first GA is `25.0.0`) for a fully reproducible build. The distribution's full build (`25.0.1+8.0.LTS`) is accepted too. `25.0`, `25.x`, `latest` or `26-ea` fail with an error naming where the version came from.
+- **Pinned JDK:** either a feature release (`25`), which takes its newest update so security fixes arrive on their own (`check-latest`, not whatever the runner image cached), or an exact version (`25.0.1`; a feature release's first GA is `25.0.0`) for a fully reproducible build. The distribution's full build (`25.0.1+8.0.LTS`) and out-of-band patches (`21.0.4.1`) are accepted too; Temurin publishes those as `21.0.4+101`, so for Temurin pin `21.0.4`, which already takes the newest build of it. `25.0`, `25.x`, `latest` or `26-ea` fail with an error naming where the version came from.
 - **Distribution:** `temurin` unless the `java-distribution` input or a prefix on the version names another, the way mise and asdf write `.java-version` (`zulu-25`, `temurin-25.0.1`). It must be one `actions/setup-java` downloads itself; `jdkfile` isn't supported.
 - **Pinned Gradle:** the build runs the version the project's wrapper pins in `gradle/wrapper/gradle-wrapper.properties`, and a project without a wrapper fails. A wrapper without `distributionSha256Sum` gets a warning, since the distribution it downloads isn't verified.
 - **Validated:** every Gradle wrapper jar in the repository is checked against Gradle's published checksums.

@@ -79,6 +79,9 @@ check "the input wins over the project" "$java_script" "$pinned" "$(jdk temurin 
 check ".java-version with CRLF and spaces" "$java_script" "$(project crlf '  25.0.1 \r\n')" "$(jdk temurin 25.0.1)"
 check "a first GA release" "$java_script" "$(project ga '25.0.0\n')" "$(jdk temurin 25.0.0)"
 check "a full Temurin build" "$java_script" "$(project build '25.0.1+8.0.LTS\n')" "$(jdk temurin 25.0.1+8.0.LTS)"
+check "an out-of-band patch" "$java_script" "$(project patch '21.0.4.1\n')" "$(jdk temurin 21.0.4.1)"
+check "an out-of-band patch with a build" "$java_script" "$(project patch-build 'zulu-17.0.8.1+1\n')" \
+  "$(jdk zulu 17.0.8.1+1)"
 
 zulu=$(project zulu 'zulu-25\n')
 check "a distribution prefix" "$java_script" "$zulu" "$(jdk zulu 25)"
@@ -100,6 +103,10 @@ check_fails "an unknown prefix" "$java_script" "$(project unknown 'openjdk-25\n'
   "distribution \"openjdk\" from $work/unknown/.java-version"
 check_fails "an unknown distribution input" "$java_script" "$pinned" "from the java-distribution input" "" adoptium
 check_fails "a local JDK archive" "$java_script" "$pinned" 'distribution "jdkfile"' "" jdkfile
+check_fails "five version numbers" "$java_script" "$(project five '21.0.4.1.1\n')" "neither a feature release"
+# The distribution is matched literally, never as a glob
+check_fails "a wildcard distribution" "$java_script" "$pinned" 'distribution "*"' "" '*'
+check_fails "a single-character wildcard distribution" "$java_script" "$pinned" 'distribution "????"' "" '????'
 
 # Gradle wrapper version
 checksum='distributionSha256Sum=21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607\n'
@@ -113,6 +120,12 @@ check "a release candidate" "$wrapper_script" \
   9.9.0-rc-1
 check "a mirror, a colon separator and CRLF" "$wrapper_script" \
   "$(project mirror '' "${checksum}distributionUrl: https\\\\://mirror.example.com/gradle/gradle-9.8.2-bin.zip\r\n")" 9.8.2
+check "trailing whitespace after the URL" "$wrapper_script" \
+  "$(project trailing '' "${checksum}distributionUrl=https\\\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip \t\n")" \
+  9.8.2
+check_stderr "a blank checksum warns" "$wrapper_script" \
+  "$(project blank-sum '' 'distributionSha256Sum=   \ndistributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip\n')" \
+  "has no distributionSha256Sum"
 
 unchecked=$(project unchecked '' 'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip\n')
 check "a wrapper without a checksum still resolves" "$wrapper_script" "$unchecked" 9.8.2

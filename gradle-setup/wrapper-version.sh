@@ -16,9 +16,10 @@ if [ ! -f "$props" ]; then
   exit 1
 fi
 
-# key=value or key:value; properties files escape the colon in a URL as "\:"
+# key=value or key:value, trimmed; properties files escape the colon in a URL as "\:"
 property() {
-  sed -n "s/^[[:space:]]*$1[[:space:]]*[=:][[:space:]]*//p" "$props" | head -n 1 | tr -d '\r'
+  sed -n "s/^[[:space:]]*$1[[:space:]]*[=:][[:space:]]*//p" "$props" | head -n 1 | tr -d '\r' |
+    sed 's/[[:space:]]*$//'
 }
 
 url=$(property distributionUrl)

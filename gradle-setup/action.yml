@@ -80,6 +80,8 @@ runs:
       with:
         distribution: ${{ steps.resolve.outputs.java-distribution }}
         java-version: ${{ steps.resolve.outputs.java-version }}
+        # Without it, a feature release like 25 takes whatever update the runner image cached, not the newest one
+        check-latest: true
 
     # Validates every Gradle wrapper jar in the repository against Gradle's published checksums
     - name: Set up Gradle

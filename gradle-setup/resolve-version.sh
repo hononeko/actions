@@ -9,9 +9,9 @@
 #
 # The version comes from JAVA_VERSION_INPUT or the first line of <project-dir>/.java-version, optionally prefixed with
 # a distribution the way mise and asdf write it (zulu-25, temurin-25.0.1). It's either a feature release (25), which
-# takes that release's newest update, or an exact version (25.0.1, or with the distribution's full build like
-# 25.0.1+8.0.LTS). Anything else (25.0, 25.x, latest, 26-ea) fails, naming its source. The distribution defaults to
-# temurin and must be one actions/setup-java installs from its own downloads.
+# takes that release's newest update, or an exact version (25.0.1, an out-of-band patch like 21.0.4.1, or either with
+# the distribution's full build like 25.0.1+8.0.LTS). Anything else (25.0, 25.x, latest, 26-ea) fails, naming its
+# source. The distribution defaults to temurin and must be one actions/setup-java installs from its own downloads.
 set -euo pipefail
 
 dir=${1:-.}
@@ -49,7 +49,7 @@ if [[ $version =~ ^([a-z][a-z-]*)-([0-9].*)$ ]]; then
   version=${BASH_REMATCH[2]}
 fi
 
-if ! [[ $version =~ ^[0-9]+(\.[0-9]+\.[0-9]+(\+[0-9A-Za-z.-]+)?)?$ ]]; then
+if ! [[ $version =~ ^[0-9]+(\.[0-9]+\.[0-9]+(\.[0-9]+)?(\+[0-9A-Za-z.-]+)?)?$ ]]; then
   echo "JDK version \"$version\" from $source is neither a feature release like 25 nor an exact version like 25.0.1" >&2
   exit 1
 fi
