@@ -1,6 +1,6 @@
 # actions
 
-Shared GitHub Actions for versioning and releasing my repositories from [Conventional Commits](https://www.conventionalcommits.org/), so every repository follows the same rules.
+Shared GitHub Actions for versioning, releasing and publishing my repositories from [Conventional Commits](https://www.conventionalcommits.org/), so every repository follows the same rules.
 
 | Action | What it does |
 |---|---|
@@ -8,6 +8,8 @@ Shared GitHub Actions for versioning and releasing my repositories from [Convent
 | [`release-notes`](release-notes/action.yml) | Markdown release notes, grouped by commit type, each entry linking its PR |
 | [`smoke-test`](smoke-test/action.yml) | Boots a container image, waits for an HTTP answer, and checks its status and memory |
 | [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
+| [`publish-image`](publish-image/action.yml) | Joins per-architecture images pushed by digest into one multi-arch image under the given tags, and attests it |
+| [`prune-snapshots`](prune-snapshots/action.yml) | Deletes a pull request's snapshot images from GHCR when it closes |
 
 `version` and `release-notes` need a full-history checkout (`fetch-depth: 0`).
 
@@ -48,6 +50,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
 - `version`, `version-tag`, and `version-type`. `version-type` is `none` when there's nothing to release.
 - `previous-tag`.
 - `rc-version` (`X.Y.Z-rc.N`, where N counts the commits since the last release) and `commit-tag` (`sha-<commit>`), for release candidates.
+- With the `pr-number` input, `snapshot-tag` (`pr-<PR>-sha-<commit>`) and `snapshot-version` (`X.Y.Z-pr.<PR>.N`), for [branch snapshots](#branch-snapshots). On `pull_request` events, check out the pull request's head commit (`ref: ${{ github.event.pull_request.head.sha }}`). The action fails on GitHub's merge commit, because that commit isn't on the branch.
 
 ## Release notes
 
@@ -106,12 +109,149 @@ It fails when the container exits or doesn't answer within `timeout` seconds (10
 
 Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when the cache matched `bun.lock` exactly).
 
+## Publish image
+
+Each architecture's image is built and pushed by digest in its own job (`docker/build-push-action` with `push-by-digest=true`), and its digest is uploaded as an empty file in a `digests-<arch>` artifact. `publish-image` then joins them:
+
+```yaml
+permissions:
+  packages: write
+  attestations: write # attest: "true" (the default)
+  id-token: write # attest: "true"
+steps:
+  - uses: docker/login-action@<sha> # v4
+    with:
+      registry: ghcr.io
+      username: ${{ github.actor }}
+      password: ${{ secrets.GITHUB_TOKEN }}
+
+  - id: publish
+    uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+    with:
+      image: ghcr.io/owner/app # lowercase
+      tags: |
+        ${{ steps.version.outputs.rc-version }}
+        ${{ steps.version.outputs.commit-tag }}
+      expected-digests: "2" # fail unless both architectures made it
+```
+
+- **Checked first:** the image name, every digest and every tag are validated before anything is pushed.
+- **Outputs:** `digest`, and `reference` (`<image>:<first tag>@<digest>`, ready to deploy). Both also go to the job summary.
+- **Pull request comment:** with `comment-on-pr`, it keeps a single comment on that pull request, updated on every publish, with the latest reference. This needs the `pull-requests: write` permission.
+
+## Branch snapshots
+
+A pull request labelled `snapshot` publishes its branch's image after every push, for testing before merging. Snapshots are tagged `pr-<PR>-sha-<commit>` and `pr-<PR>` (the newest), never as a version, so Renovate never offers one as an update. They're deleted when the pull request closes. The release candidate published from `main` stays the only image that's released.
+
+```yaml
+# .github/workflows/pr.yml
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened, labeled]
+
+# Any other label gets a group of its own, so labelling never cancels a running build.
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'snapshot'
+    && format('-{0}', github.run_id) || '' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    # Labelling re-runs the workflow only for the snapshot label.
+    if: github.event.action != 'labeled' || github.event.label.name == 'snapshot'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      # Only branches of this repository: a fork's code never runs with a token that can push.
+      snapshot: >-
+        ${{ github.event.pull_request.head.repo.full_name == github.repository
+        && contains(github.event.pull_request.labels.*.name, 'snapshot') }}
+      tag: ${{ steps.version.outputs.snapshot-tag }}
+      version: ${{ steps.version.outputs.snapshot-version }}
+    steps:
+      - uses: actions/checkout@<sha> # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - id: version
+        uses: hononeko/actions/version@<sha> # vX.Y.Z
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+
+  # The repository's own build: tests, then each architecture's image, smoke-tested and, with push, pushed by digest.
+  image:
+    needs: plan
+    uses: ./.github/workflows/image.yml
+    with:
+      push: ${{ needs.plan.outputs.snapshot == 'true' }}
+      ref: ${{ needs.plan.outputs.snapshot == 'true' && github.event.pull_request.head.sha || '' }}
+      version: ${{ needs.plan.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+
+  snapshot:
+    needs: [plan, image]
+    if: needs.plan.outputs.snapshot == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+      attestations: write
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: docker/login-action@<sha> # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+        with:
+          image: ghcr.io/owner/app
+          tags: |
+            ${{ needs.plan.outputs.tag }}
+            pr-${{ github.event.pull_request.number }}
+          expected-digests: "2"
+          title: Snapshot
+          comment-on-pr: ${{ github.event.pull_request.number }}
+          comment-note: For testing only. Deleted when this pull request closes.
+```
+
+```yaml
+# .github/workflows/snapshot-cleanup.yml
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  prune:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: hononeko/actions/prune-snapshots@<sha> # vX.Y.Z
+        with:
+          package: app
+          pr-number: ${{ github.event.pull_request.number }}
+```
+
+- **Building the branch:** the image must be built from `github.event.pull_request.head.sha`, as `image.yml`'s checkout `ref` above. GitHub's default merge commit isn't on the branch.
+- **Pruning:** `prune-snapshots` deletes exactly the tags `^pr-<PR>(-sha-<7 hex>)?$`. It deletes an image once its last tag is gone, along with its platform images and attestations. An image that also has another tag keeps it. Pass `dry-run: "true"` to only log what would be deleted.
+- **Running pods:** a pod still running a deleted snapshot keeps its cached copy, but it can't be pulled again. Deploy snapshots only for testing, and go back to a release before the pull request closes.
+
 ## Development
 
 ```bash
 tests/release-notes.test.sh
 tests/bun-setup.test.sh
-shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh tests/*.sh
+tests/publish-image.test.sh
+tests/snapshot-pattern.test.sh
+shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
+  publish-image/*.sh prune-snapshots/*.sh tests/*.sh
 ```
 
 Every push to `main` that warrants a new version is released automatically as `vX.Y.Z` (`.github/workflows/cd.yml`).

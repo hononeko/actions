@@ -14,7 +14,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: ShellCheck
-        run: shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh tests/*.sh
+        run: >-
+          shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh
+          publish-image/*.sh prune-snapshots/*.sh tests/*.sh
 
       - name: actionlint
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
@@ -24,6 +26,12 @@ jobs:
 
       - name: Bun version resolution tests
         run: tests/bun-setup.test.sh
+
+      - name: Publish image tests
+        run: tests/publish-image.test.sh
+
+      - name: Snapshot pattern tests
+        run: tests/snapshot-pattern.test.sh
 
   # Runs both actions the way a consumer would, against this repository's own history.
   actions:
@@ -70,6 +78,88 @@ jobs:
           NOTES: ${{ steps.notes.outputs.path }}
         run: |
           grep -q '^\*\*Full Changelog\*\*: https://github.com/' "$NOTES"
+
+  # The version action's snapshot outputs, checked out the way a consumer must: at the pull request's head commit.
+  snapshot-version:
+    name: Snapshot version
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Version
+        id: version
+        uses: ./version
+        with:
+          tag-prefix: v
+          pr-number: "42"
+
+      - name: Check the snapshot outputs
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SNAPSHOT_TAG: ${{ steps.version.outputs.snapshot-tag }}
+          SNAPSHOT_VERSION: ${{ steps.version.outputs.snapshot-version }}
+        run: |
+          echo "snapshot-tag=$SNAPSHOT_TAG snapshot-version=$SNAPSHOT_VERSION"
+          [ "$SNAPSHOT_TAG" = "pr-42-sha-$(git rev-parse --short=7 HEAD)" ]
+          [[ $SNAPSHOT_VERSION =~ ^$VERSION-pr\.42\.[0-9]+$ ]]
+          # prune-snapshots must find exactly the tags version names.
+          grep -Eq "$(prune-snapshots/snapshot-pattern.sh 42)" <<<"$SNAPSHOT_TAG"
+
+      - name: Version without a pull request number
+        id: plain
+        uses: ./version
+        with:
+          tag-prefix: v
+
+      - name: Check there's no snapshot without one
+        env:
+          SNAPSHOT_TAG: ${{ steps.plain.outputs.snapshot-tag }}
+          SNAPSHOT_VERSION: ${{ steps.plain.outputs.snapshot-version }}
+        run: |
+          [ -z "$SNAPSHOT_TAG$SNAPSHOT_VERSION" ]
+
+      - name: Version with a malformed pull request number
+        id: malformed
+        continue-on-error: true
+        uses: ./version
+        with:
+          pr-number: "42; true"
+
+      - name: Check the malformed number failed
+        env:
+          OUTCOME: ${{ steps.malformed.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
+
+      # On pull requests, GitHub's merge commit isn't on the branch: naming a snapshot after it must fail.
+      - name: Check out the merge commit
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git fetch -q origin "refs/pull/$PR_NUMBER/merge"
+          git checkout -q FETCH_HEAD
+
+      - name: Version of the merge commit
+        id: merge
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: ./version
+        with:
+          pr-number: "42"
+
+      - name: Check the merge commit was refused
+        if: github.event_name == 'pull_request'
+        env:
+          OUTCOME: ${{ steps.merge.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
 
   # The version action against throwaway repositories: each case starts from a v1.2.3 release and adds commits.
   version-rules:
