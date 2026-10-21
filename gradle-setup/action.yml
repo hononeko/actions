@@ -1,0 +1,90 @@
+name: Gradle setup
+description: >-
+  Installs a pinned JDK and sets up Gradle with a dependency cache and wrapper validation. The JDK comes from the
+  java-version input or .java-version, as a feature release (25, its newest update) or an exact version (25.0.1),
+  optionally prefixed with a distribution (zulu-25); anything else fails, so builds never float to "latest". Gradle is
+  the version the project's wrapper pins, and a project without a wrapper fails.
+
+inputs:
+  java-version:
+    description: >-
+      JDK version: a feature release like 25 or an exact version like 25.0.1, optionally prefixed with a distribution
+      (zulu-25). Defaults to the project's .java-version.
+    required: false
+    default: ""
+  java-distribution:
+    description: >-
+      JDK distribution, as actions/setup-java names it (temurin, zulu, corretto, ...). Wins over a prefix on the
+      version; without either, temurin.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory with the project's .java-version and Gradle wrapper
+    required: false
+    default: "."
+  cache-provider:
+    description: >-
+      How setup-gradle caches Gradle User Home. "basic" (the default here) is open source (MIT) and free for every
+      repository; "enhanced" is Gradle's proprietary caching library, under its own terms; "external" leaves caching
+      to another step.
+    required: false
+    default: basic
+
+outputs:
+  java-version:
+    description: The requested JDK version, e.g. 25 or 25.0.1
+    value: ${{ steps.resolve.outputs.java-version }}
+  java-distribution:
+    description: The JDK distribution, e.g. temurin
+    value: ${{ steps.resolve.outputs.java-distribution }}
+  java-installed-version:
+    description: The JDK version actually installed, e.g. 25.0.1+8.0.LTS for a requested 25
+    value: ${{ steps.java.outputs.version }}
+  java-home:
+    description: Path of the installed JDK, also exported as JAVA_HOME
+    value: ${{ steps.java.outputs.path }}
+  gradle-version:
+    description: The Gradle version the wrapper pins, e.g. 9.8.2
+    value: ${{ steps.resolve.outputs.gradle-version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the JDK and Gradle versions
+      id: resolve
+      shell: bash
+      env:
+        JAVA_VERSION_INPUT: ${{ inputs.java-version }}
+        JAVA_DISTRIBUTION_INPUT: ${{ inputs.java-distribution }}
+        PROJECT_DIR: ${{ inputs.working-directory }}
+      run: |
+        err=$(mktemp)
+        if ! java=$("$GITHUB_ACTION_PATH/resolve-version.sh" "$PROJECT_DIR" 2>"$err"); then
+          echo "::error title=gradle-setup::$(cat "$err")"
+          exit 1
+        fi
+        if ! gradle_version=$("$GITHUB_ACTION_PATH/wrapper-version.sh" "$PROJECT_DIR" 2>"$err"); then
+          echo "::error title=gradle-setup::$(cat "$err")"
+          exit 1
+        fi
+        # A wrapper without a distribution checksum still builds, so it only warns
+        if [ -s "$err" ]; then echo "::warning title=gradle-setup::$(cat "$err")"; fi
+        {
+          echo "$java"
+          echo "gradle-version=$gradle_version"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Install the JDK
+      id: java
+      uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      with:
+        distribution: ${{ steps.resolve.outputs.java-distribution }}
+        java-version: ${{ steps.resolve.outputs.java-version }}
+        # Without it, a feature release like 25 takes whatever update the runner image cached, not the newest one
+        check-latest: true
+
+    # Validates every Gradle wrapper jar in the repository against Gradle's published checksums
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      with:
+        cache-provider: ${{ inputs.cache-provider }}

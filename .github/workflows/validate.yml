@@ -16,7 +16,7 @@ jobs:
       - name: ShellCheck
         run: >-
           shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh
-          publish-image/*.sh prune-snapshots/*.sh tests/*.sh
+          gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh tests/*.sh
 
       # actionlint only reads an action's metadata where a workflow here uses it, so every action.yml is checked too:
       # a YAML error in one only shows up when a consumer loads it.
@@ -35,6 +35,9 @@ jobs:
 
       - name: Bun version resolution tests
         run: tests/bun-setup.test.sh
+
+      - name: JDK and Gradle version resolution tests
+        run: tests/gradle-setup.test.sh
 
       - name: Publish image tests
         run: tests/publish-image.test.sh
@@ -365,3 +368,76 @@ jobs:
           OUTCOME: ${{ steps.unpinned.outcome }}
         run: |
           [ "$OUTCOME" = "failure" ]
+
+  # Runs gradle-setup the way a consumer would, against the fixture projects in tests/fixtures. setup-gradle runs once
+  # per job, so each way of pinning the JDK gets its own job.
+  gradle-setup:
+    name: Gradle setup action (${{ matrix.case }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case: exact version from .java-version
+            java-version: ""
+            java-distribution: ""
+            expected-distribution: temurin
+          - case: feature release and distribution inputs
+            java-version: "21"
+            java-distribution: zulu
+            expected-distribution: zulu
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up an unpinned project
+        id: unpinned
+        if: matrix.java-version == ''
+        continue-on-error: true
+        uses: ./gradle-setup
+        with:
+          working-directory: tests/fixtures/gradle-unpinned
+
+      - name: Check the unpinned project failed
+        if: matrix.java-version == ''
+        env:
+          OUTCOME: ${{ steps.unpinned.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
+
+      - name: Set up the JDK and Gradle
+        id: setup
+        uses: ./gradle-setup
+        with:
+          java-version: ${{ matrix.java-version }}
+          java-distribution: ${{ matrix.java-distribution }}
+          working-directory: tests/fixtures/gradle-project
+
+      - name: Check the setup
+        working-directory: tests/fixtures/gradle-project
+        env:
+          INPUT: ${{ matrix.java-version }}
+          EXPECTED_DISTRIBUTION: ${{ matrix.expected-distribution }}
+          JAVA_VERSION_OUTPUT: ${{ steps.setup.outputs.java-version }}
+          JAVA_DISTRIBUTION_OUTPUT: ${{ steps.setup.outputs.java-distribution }}
+          JAVA_INSTALLED_OUTPUT: ${{ steps.setup.outputs.java-installed-version }}
+          JAVA_HOME_OUTPUT: ${{ steps.setup.outputs.java-home }}
+          GRADLE_VERSION_OUTPUT: ${{ steps.setup.outputs.gradle-version }}
+        run: |
+          expected=${INPUT:-$(head -n 1 .java-version)}
+          echo "java-version=$JAVA_VERSION_OUTPUT java-distribution=$JAVA_DISTRIBUTION_OUTPUT" \
+            "java-installed-version=$JAVA_INSTALLED_OUTPUT java-home=$JAVA_HOME_OUTPUT gradle-version=$GRADLE_VERSION_OUTPUT"
+          [ "$JAVA_VERSION_OUTPUT" = "$expected" ]
+          [ "$JAVA_DISTRIBUTION_OUTPUT" = "$EXPECTED_DISTRIBUTION" ]
+          [[ $JAVA_INSTALLED_OUTPUT == "$expected"* ]]
+          [ "$JAVA_HOME" = "$JAVA_HOME_OUTPUT" ]
+          # setup-java installs each distribution under its own tool cache folder: Java_Zulu_jdk, Java_Temurin-Hotspot_jdk
+          [[ ${JAVA_HOME_OUTPUT,,} == *"/java_${EXPECTED_DISTRIBUTION}"[_-]* ]]
+          grep -q "/gradle-$GRADLE_VERSION_OUTPUT-bin.zip$" gradle/wrapper/gradle-wrapper.properties
+          # The build runs on the pinned JDK, with the wrapper's Gradle
+          ./gradlew --version | grep -qx "Gradle $GRADLE_VERSION_OUTPUT"
+          runtime=$(./gradlew -q printJavaVersion)
+          echo "build JVM: $runtime"
+          [[ $runtime == "$expected"* ]]
