@@ -1,0 +1,93 @@
+name: Publish image
+description: >-
+  Joins per-architecture images, each pushed by digest and uploaded as a digests-* artifact, into one multi-arch image
+  under the given tags, attests its build provenance, and reports it in the job summary and, optionally, in a comment
+  on a pull request. Log in to the registry first.
+
+inputs:
+  image:
+    description: Image to publish, e.g. ghcr.io/owner/name
+    required: true
+  tags:
+    description: Tags to publish, separated by spaces or newlines; the first one names the image in reports
+    required: true
+  digests-pattern:
+    description: Artifacts holding the digests, one empty file per architecture named by its digest without "sha256:"
+    required: false
+    default: digests-*
+  expected-digests:
+    description: Fail unless exactly this many digests (architectures) were found; empty for any number but 0
+    required: false
+    default: ""
+  attest:
+    description: >-
+      "true" to attest the image's build provenance, which needs the `attestations: write` and `id-token: write`
+      permissions
+    required: false
+    default: "true"
+  title:
+    description: Heading of the job summary and the pull request comment
+    required: false
+    default: Image published
+  comment-on-pr:
+    description: >-
+      Pull request to keep one comment on, naming the latest image; needs the `pull-requests: write` permission.
+      Empty for no comment
+    required: false
+    default: ""
+  comment-note:
+    description: Optional line added to the pull request comment
+    required: false
+    default: ""
+  token:
+    description: Token for the pull request comment
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  digest:
+    description: Digest of the multi-arch image, e.g. sha256:...
+    value: ${{ steps.publish.outputs.digest }}
+  reference:
+    description: The image by its first tag and digest, ready to deploy, e.g. ghcr.io/owner/name:tag@sha256:...
+    value: ${{ steps.publish.outputs.reference }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download digests
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        path: ${{ runner.temp }}/publish-image-digests
+        pattern: ${{ inputs.digests-pattern }}
+        merge-multiple: true
+
+    - name: Create multi-arch image
+      id: publish
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        DIGESTS: ${{ runner.temp }}/publish-image-digests
+        PUBLISH_TAGS: ${{ inputs.tags }}
+        PUBLISH_EXPECTED_DIGESTS: ${{ inputs.expected-digests }}
+        PUBLISH_TITLE: ${{ inputs.title }}
+      run: '"$GITHUB_ACTION_PATH/publish-image.sh" "$IMAGE" "$DIGESTS"'
+
+    - name: Attest build provenance
+      if: inputs.attest == 'true'
+      uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+      with:
+        subject-name: ${{ inputs.image }}
+        subject-digest: ${{ steps.publish.outputs.digest }}
+        push-to-registry: true
+
+    - name: Comment on the pull request
+      if: inputs.comment-on-pr != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PR: ${{ inputs.comment-on-pr }}
+        REF: ${{ steps.publish.outputs.reference }}
+        COMMENT_TITLE: ${{ inputs.title }}
+        COMMENT_NOTE: ${{ inputs.comment-note }}
+      run: '"$GITHUB_ACTION_PATH/comment.sh" "$PR" "$REF"'

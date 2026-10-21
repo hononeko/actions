@@ -2,14 +2,26 @@ name: Version
 description: >-
   The next release version from Conventional Commits, with the same rules in every repository: a `!` in the header
   or a BREAKING CHANGE footer bumps the major version, `feat` the minor, every other type the patch, and docs/test
-  commits nothing. Also names a release candidate for the current commit. Needs a full-history checkout
-  (`fetch-depth: 0`).
+  commits nothing. Also names a release candidate for the current commit, and, given a pull request number, a snapshot
+  of it. Needs a full-history checkout (`fetch-depth: 0`).
 
 inputs:
   tag-prefix:
     description: Prefix of the repository's release tags, e.g. "v" for v1.2.3; empty for 1.2.3
     required: false
     default: ""
+  pr-number:
+    description: >-
+      Pull request to name a snapshot for (snapshot-tag, snapshot-version). On pull_request events, check out the
+      pull request's head commit (`ref: github.event.pull_request.head.sha`), not GitHub's merge commit.
+    required: false
+    default: ""
+  head-sha:
+    description: >-
+      With pr-number, the commit HEAD must be, so a snapshot is never named after another one (such as GitHub's merge
+      commit); empty to skip the check
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
 
 outputs:
   version:
@@ -30,6 +42,12 @@ outputs:
   commit-tag:
     description: Tag identifying this commit, e.g. sha-1a2b3c4
     value: ${{ steps.rc.outputs.commit_tag }}
+  snapshot-tag:
+    description: With pr-number, the snapshot image tag of this commit, e.g. pr-12-sha-1a2b3c4; empty otherwise
+    value: ${{ steps.rc.outputs.snapshot_tag }}
+  snapshot-version:
+    description: With pr-number, the snapshot's version, e.g. 1.2.3-pr.12.4; empty otherwise
+    value: ${{ steps.rc.outputs.snapshot_version }}
 
 runs:
   using: composite
@@ -54,12 +72,16 @@ runs:
 
     # N counts every commit since the last release, so each new commit gets a new RC number. The action's own
     # `increment` skips docs:/test: commits and could repeat one.
+    # A snapshot is named after the pull request and the commit: pr-<PR>-sha-<commit>. Not a version, so Renovate never
+    # offers one as an update, and prune-snapshots matches exactly these tags.
     - name: Release candidate
       id: rc
       shell: bash
       env:
         TAG_PREFIX: ${{ inputs.tag-prefix }}
         VERSION: ${{ steps.version.outputs.version }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        PR_HEAD_SHA: ${{ inputs.head-sha }}
       run: |
         previous=$(git describe --tags --abbrev=0 --match "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || true)
         if [ -n "$previous" ]; then n=$(git rev-list --count "$previous..HEAD"); else n=$(git rev-list --count HEAD); fi
@@ -70,6 +92,24 @@ runs:
           echo "commit_tag=sha-$sha"
         } >> "$GITHUB_OUTPUT"
         echo "Next version $VERSION (release candidate $VERSION-rc.$n, sha-$sha); last release: ${previous:-none}"
+
+        if [ -n "$PR_NUMBER" ]; then
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error title=Invalid pr-number::Expected a pull request number, got '$PR_NUMBER'"
+            exit 1
+          fi
+          # On pull_request events actions/checkout defaults to a merge commit that isn't on the branch, so a snapshot
+          # of it would be neither the branch's code nor findable by its tag.
+          if [ -n "$PR_HEAD_SHA" ] && [ "$(git rev-parse HEAD)" != "$PR_HEAD_SHA" ]; then
+            echo "::error title=Not the pull request's head commit::HEAD is $(git rev-parse HEAD), not the pull request's head $PR_HEAD_SHA. Check out the head commit (actions/checkout with ref: github.event.pull_request.head.sha)."
+            exit 1
+          fi
+          {
+            echo "snapshot_tag=pr-$PR_NUMBER-sha-$sha"
+            echo "snapshot_version=$VERSION-pr.$PR_NUMBER.$n"
+          } >> "$GITHUB_OUTPUT"
+          echo "Snapshot pr-$PR_NUMBER-sha-$sha (version $VERSION-pr.$PR_NUMBER.$n)"
+        fi
 
     # version_type is "none" when every commit since the last tag was ignored, or HEAD is already tagged.
     - name: Report nothing to release
