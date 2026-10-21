@@ -42,6 +42,17 @@ jobs:
       - name: Snapshot pattern tests
         run: tests/snapshot-pattern.test.sh
 
+      # ghcr-cleanup-action refuses any delete-tags regex that safe-regex2 flags, at the version in its package.json.
+      - name: Snapshot pattern passes the cleanup action's regex check
+        run: |
+          npm install --no-save --ignore-scripts --silent safe-regex2@5.1.1
+          for pr in 1 42 99999; do
+            pattern=$(prune-snapshots/snapshot-pattern.sh "$pr")
+            PATTERN=$pattern node -e 'process.exit(require("safe-regex2")(process.env.PATTERN) ? 0 : 1)' ||
+              { echo "::error::safe-regex2 rejects $pattern"; exit 1; }
+            echo "ok $pattern"
+          done
+
   # Runs both actions the way a consumer would, against this repository's own history.
   actions:
     name: Run the actions
