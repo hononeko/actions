@@ -8,6 +8,7 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 | [`release-notes`](release-notes/action.yml) | Markdown release notes, grouped by commit type, each entry linking its PR |
 | [`smoke-test`](smoke-test/action.yml) | Boots a container image, waits for an HTTP answer, and checks its status and memory |
 | [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
+| [`gradle-setup`](gradle-setup/action.yml) | Installs a pinned JDK and sets up the project's Gradle wrapper, validated and with a cache |
 | [`publish-image`](publish-image/action.yml) | Joins per-architecture images pushed by digest into one multi-arch image under the given tags, and attests it |
 | [`prune-snapshots`](prune-snapshots/action.yml) | Deletes a pull request's snapshot images from GHCR when it closes |
 
@@ -108,6 +109,30 @@ It fails when the container exits or doesn't answer within `timeout` seconds (10
 - **Cache:** `~/.bun/install/cache`, keyed on the OS, architecture, Bun version and `bun.lock`.
 
 Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when the cache matched `bun.lock` exactly).
+
+## Gradle setup
+
+```yaml
+- uses: actions/checkout@<sha> # v7
+
+- id: gradle
+  uses: hononeko/actions/gradle-setup@<sha> # vX.Y.Z
+  # with:
+  #   java-version: 25.0.1       # default: .java-version
+  #   java-distribution: zulu    # default: a prefix on the version, then temurin
+  #   working-directory: app     # default: .
+  #   cache-provider: enhanced   # default: basic
+
+- run: ./gradlew check
+```
+
+- **Pinned JDK:** either a feature release (`25`), which takes its newest update so security fixes arrive on their own, or an exact version (`25.0.1`; a feature release's first GA is `25.0.0`) for a fully reproducible build. The distribution's full build (`25.0.1+8.0.LTS`) is accepted too. `25.0`, `25.x`, `latest` or `26-ea` fail with an error naming where the version came from.
+- **Distribution:** `temurin` unless the `java-distribution` input or a prefix on the version names another, the way mise and asdf write `.java-version` (`zulu-25`, `temurin-25.0.1`). It must be one `actions/setup-java` downloads itself; `jdkfile` isn't supported.
+- **Pinned Gradle:** the build runs the version the project's wrapper pins in `gradle/wrapper/gradle-wrapper.properties`, and a project without a wrapper fails. A wrapper without `distributionSha256Sum` gets a warning, since the distribution it downloads isn't verified.
+- **Validated:** every Gradle wrapper jar in the repository is checked against Gradle's published checksums.
+- **Cache:** Gradle User Home, by [`setup-gradle`](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md). Pull requests only read it; the default branch writes it. The cache provider defaults to `basic`, which is open source (MIT) and free for every repository. `enhanced` is Gradle's proprietary library under its own terms.
+
+Outputs: `java-version` (the requested version), `java-distribution`, `java-installed-version` (what was installed, e.g. `25.0.1+8.0.LTS` for a requested `25`), `java-home` (the installed JDK, also exported as `JAVA_HOME`) and `gradle-version` (the wrapper's version).
 
 ## Publish image
 
@@ -248,10 +273,11 @@ jobs:
 ```bash
 tests/release-notes.test.sh
 tests/bun-setup.test.sh
+tests/gradle-setup.test.sh
 tests/publish-image.test.sh
 tests/snapshot-pattern.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
-  publish-image/*.sh prune-snapshots/*.sh tests/*.sh
+  gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh tests/*.sh
 ```
 
 Every push to `main` that warrants a new version is released automatically as `vX.Y.Z` (`.github/workflows/cd.yml`).
