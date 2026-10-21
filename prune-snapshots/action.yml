@@ -16,7 +16,7 @@ inputs:
     required: false
     default: ""
   token:
-    description: Token with the `packages: write` permission on the package
+    description: 'Token with the `packages: write` permission on the package'
     required: false
     default: ${{ github.token }}
   dry-run:
