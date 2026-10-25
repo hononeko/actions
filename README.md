@@ -168,24 +168,20 @@ steps:
 
 A pull request labelled `snapshot` publishes its branch's image after every push, for testing before merging. Snapshots are tagged `pr-<PR>-sha-<commit>` and `pr-<PR>` (the newest), never as a version, so Renovate never offers one as an update. They're deleted when the pull request closes. The release candidate published from `main` stays the only image that's released.
 
+Snapshot publishing is decoupled into a dedicated `snapshot.yml` workflow for the `labeled` event, keeping `pr.yml` isolated to code changes. If `pr.yml` listens to `labeled`, non-snapshot labels (such as Renovate or triage labels) skip caller jobs, preventing child status checks from being reported in the latest check suite and blocking branch protection.
+
 ```yaml
 # .github/workflows/pr.yml
 on:
   pull_request:
     branches: ["main"]
-    types: [opened, synchronize, reopened, labeled]
 
-# Any other label gets a group of its own, so labelling never cancels a running build.
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'labeled' && github.event.label.name != 'snapshot'
-    && format('-{0}', github.run_id) || '' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   plan:
-    # Labelling re-runs the workflow only for the snapshot label.
-    if: github.event.action != 'labeled' || github.event.label.name == 'snapshot'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -221,6 +217,73 @@ jobs:
   snapshot:
     needs: [plan, image]
     if: needs.plan.outputs.snapshot == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+      attestations: write
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: docker/login-action@<sha> # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+        with:
+          image: ghcr.io/owner/app
+          tags: |
+            ${{ needs.plan.outputs.tag }}
+            pr-${{ github.event.pull_request.number }}
+          expected-digests: "2"
+          title: Snapshot
+          comment-on-pr: ${{ github.event.pull_request.number }}
+          comment-note: For testing only. Deleted when this pull request closes.
+```
+
+```yaml
+# .github/workflows/snapshot.yml
+on:
+  pull_request:
+    branches: ["main"]
+    types: [labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: github.event.label.name == 'snapshot' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.snapshot-tag }}
+      version: ${{ steps.version.outputs.snapshot-version }}
+    steps:
+      - uses: actions/checkout@<sha> # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - id: version
+        uses: hononeko/actions/version@<sha> # vX.Y.Z
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+
+  image:
+    needs: plan
+    uses: ./.github/workflows/image.yml
+    with:
+      push: true
+      ref: ${{ github.event.pull_request.head.sha }}
+      version: ${{ needs.plan.outputs.version }}
+    permissions:
+      contents: read
+      packages: write
+
+  snapshot:
+    needs: [plan, image]
     runs-on: ubuntu-24.04
     permissions:
       packages: write
