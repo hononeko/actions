@@ -6,7 +6,7 @@ on:
 jobs:
   lint-test:
     name: Lint & Test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -59,7 +59,7 @@ jobs:
   # Runs both actions the way a consumer would, against this repository's own history.
   actions:
     name: Run the actions
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -105,7 +105,7 @@ jobs:
   # The version action's snapshot outputs, against a throwaway repository: a v1.2.3 release, then a feature.
   snapshot-version:
     name: Snapshot version
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -191,7 +191,7 @@ jobs:
   # The version action against throwaway repositories: each case starts from a v1.2.3 release and adds commits.
   version-rules:
     name: Version rules (${{ matrix.case }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     strategy:
@@ -264,7 +264,7 @@ jobs:
 
   smoke-test:
     name: Smoke test action
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -302,7 +302,7 @@ jobs:
   # Runs bun-setup the way a consumer would, against the fixture projects in tests/fixtures.
   bun-setup:
     name: Bun setup action
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     steps:
@@ -373,7 +373,7 @@ jobs:
   # per job, so each way of pinning the JDK gets its own job.
   gradle-setup:
     name: Gradle setup action (${{ matrix.case }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     strategy:
