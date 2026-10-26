@@ -328,7 +328,7 @@ jobs:
 ```
 
 - **Building the branch:** the image must be built from `github.event.pull_request.head.sha`, as `image.yml`'s checkout `ref` above. GitHub's default merge commit isn't on the branch.
-- **Pruning:** `prune-snapshots` deletes exactly the tags `^(pr-<PR>|pr-<PR>-sha-<7 hex>)$`. It deletes an image once its last tag is gone, along with its platform images and attestations. An image that also has another tag keeps it. Pass `dry-run: "true"` to only log what would be deleted.
+- **Pruning:** snapshots are tagged with unique snapshot tags (`pr-<PR>` and `pr-<PR>-sha-<commit>`), and `prune-snapshots` deletes package versions matching these snapshot tags, along with their platform images and attestations. Pass `dry-run: "true"` to only log what would be deleted.
 - **Running pods:** a pod still running a deleted snapshot keeps its cached copy, but it can't be pulled again. Deploy snapshots only for testing, and go back to a release before the pull request closes.
 
 ## Development
@@ -339,8 +339,10 @@ tests/bun-setup.test.sh
 tests/gradle-setup.test.sh
 tests/publish-image.test.sh
 tests/snapshot-pattern.test.sh
+tests/smoke-test.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
   gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh tests/*.sh
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 ```
 
 Every push to `main` that warrants a new version is released automatically as `vX.Y.Z` (`.github/workflows/cd.yml`).

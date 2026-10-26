@@ -1,8 +1,8 @@
 name: Prune snapshots
 description: >-
-  Deletes one pull request's snapshot images from GHCR: every tag publish-image gave them (pr-<N>, pr-<N>-sha-<commit>),
-  and each image once no other tag holds it, with its platform images and attestations. Run it when the pull request
-  closes. Images that also carry any other tag keep it.
+  Deletes one pull request's snapshot images from GHCR. Snapshots are tagged with unique snapshot tags
+  (pr-<PR> and pr-<PR>-sha-<commit>), and prune-snapshots deletes package versions matching these snapshot
+  tags, along with their platform images and attestations. Run it when the pull request closes.
 
 inputs:
   package:
