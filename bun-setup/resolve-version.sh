@@ -6,7 +6,7 @@
 #
 # Looks at, in order: BUN_VERSION_INPUT, the first line of <project-dir>/.bun-version, and
 # "packageManager": "bun@X.Y.Z" in <project-dir>/package.json. A leading "v" or "bun-v" and a Corepack-style
-# "+sha512..." suffix are dropped. Anything but an exact version (latest, 1.4, ^1.4.0) fails, naming its source.
+# "+sha512..." suffix (packageManager only) are dropped. Anything but an exact version (latest, 1.4, ^1.4.0) fails, naming its source.
 set -euo pipefail
 
 dir=${1:-.}
@@ -20,8 +20,9 @@ trim() {
   printf '%s' "$s"
 }
 
-if [ -n "${BUN_VERSION_INPUT:-}" ]; then
-  version=$BUN_VERSION_INPUT
+trimmed_input=$(trim "${BUN_VERSION_INPUT:-}")
+if [ -n "$trimmed_input" ]; then
+  version=$trimmed_input
   source="the bun-version input"
 elif [ -f "$dir/.bun-version" ]; then
   version=$(head -n 1 "$dir/.bun-version")
@@ -32,9 +33,14 @@ elif [ -f "$dir/package.json" ]; then
 fi
 
 version=$(trim "$version")
-version=${version%%+*}
-version=${version#bun-v}
-version=${version#v}
+if [[ $source == "packageManager in "* ]]; then
+  version=${version%%+*}
+fi
+if [[ $version == bun-v* ]]; then
+  version=${version#bun-v}
+elif [[ $version == v* ]]; then
+  version=${version#v}
+fi
 
 if [ -z "$version" ]; then
   echo "No Bun version pinned: set the bun-version input, add a .bun-version file, or set" \

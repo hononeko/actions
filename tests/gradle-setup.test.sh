@@ -76,6 +76,7 @@ pinned=$(project pinned '25.0.1\n')
 check "an exact version" "$java_script" "$pinned" "$(jdk temurin 25.0.1)"
 check "a feature release" "$java_script" "$(project major '25\n')" "$(jdk temurin 25)"
 check "the input wins over the project" "$java_script" "$pinned" "$(jdk temurin 21)" 21
+check "whitespace-only version input falls back to .java-version" "$java_script" "$pinned" "$(jdk temurin 25.0.1)" "   "
 check ".java-version with CRLF and spaces" "$java_script" "$(project crlf '  25.0.1 \r\n')" "$(jdk temurin 25.0.1)"
 check "a first GA release" "$java_script" "$(project ga '25.0.0\n')" "$(jdk temurin 25.0.0)"
 check "a full Temurin build" "$java_script" "$(project build '25.0.1+8.0.LTS\n')" "$(jdk temurin 25.0.1+8.0.LTS)"
@@ -89,6 +90,7 @@ check "a prefix on an exact version" "$java_script" "$(project tem 'temurin-25.0
 check "a prefix with a hyphen" "$java_script" "$(project nik 'liberica-nik-25\n')" "$(jdk liberica-nik 25)"
 check "a prefix on the input" "$java_script" "$pinned" "$(jdk corretto 21)" corretto-21
 check "the distribution input wins over a prefix" "$java_script" "$zulu" "$(jdk corretto 25)" "" corretto
+check "whitespace-only distribution input falls back to prefix" "$java_script" "$zulu" "$(jdk zulu 25)" "" "   "
 check "the distribution input without a prefix" "$java_script" "$pinned" "$(jdk zulu 25.0.1)" "" zulu
 
 check_fails "nothing pinned" "$java_script" "$(project bare)" "No JDK version pinned"
@@ -135,6 +137,12 @@ check_fails "no wrapper" "$wrapper_script" "$(project nowrapper '25.0.1\n')" "No
 check_fails "no distributionUrl" "$wrapper_script" "$(project nourl '' "$checksum")" "No Gradle version in distributionUrl"
 check_fails "an unversioned URL" "$wrapper_script" \
   "$(project custom '' 'distributionUrl=https\\://example.com/gradle.zip\n')" "No Gradle version in distributionUrl"
+check_fails "latest in wrapper" "$wrapper_script" \
+  "$(project latest-wrapper '' 'distributionUrl=https\\://services.gradle.org/distributions/gradle-latest-bin.zip\n')" \
+  'Gradle version "latest" in distributionUrl'
+check_fails "wildcard in wrapper" "$wrapper_script" \
+  "$(project wildcard-wrapper '' 'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.x-bin.zip\n')" \
+  "is not an exact version"
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures check(s) failed"
