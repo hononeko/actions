@@ -28,7 +28,8 @@ $COMMENT_NOTE"
 fi
 
 id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments" \
-  --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+  --jq "first(.[] | select(.body | startswith(\"$marker\")) | .id) // empty")
+id=${id%%$'\n'*}
 if [ -n "$id" ]; then
   gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" >/dev/null
   echo "Updated comment $id on #$pr"

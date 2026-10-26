@@ -88,6 +88,9 @@ if out=$(PUBLISH_TAGS=edge "$publish" localhost:5000/team/app "$one" 2>&1); then
 fi
 
 publish_fails "wrong number of digests" "Expected 2 digests, got 1" ghcr.io/owner/app "$one" v1 2
+publish_fails "non-integer expected-digests" "Expected a positive integer for expected-digests, got 'abc'" ghcr.io/owner/app "$two" v1 abc
+publish_fails "zero expected-digests" "Expected a positive integer for expected-digests, got '0'" ghcr.io/owner/app "$two" v1 0
+publish_fails "trailing space in expected-digests" "Expected a positive integer for expected-digests, got '2 '" ghcr.io/owner/app "$two" v1 "2 "
 publish_fails "no digests" "No digests" ghcr.io/owner/app "$(digests empty)"
 publish_fails "malformed digest" "isn't a sha256 digest" ghcr.io/owner/app "$(digests bad "$amd64" nope)"
 publish_fails "uppercase image" "isn't an image name" ghcr.io/Owner/app "$two"
@@ -113,6 +116,13 @@ if grep -q '^api -X PATCH repos/owner/repo/issues/comments/987 ' "$work/gh.log" 
   pass "updates its comment"
 else
   fail "updates its comment" "$(cat "$work/gh.log")"
+fi
+rm -f "$work/gh.log"
+STUB_COMMENT_ID=$'111\n222' "$comment" 12 "ghcr.io/owner/app:pr-12@$joined" >/dev/null
+if grep -q '^api -X PATCH repos/owner/repo/issues/comments/111 ' "$work/gh.log" && ! grep -q POST "$work/gh.log"; then
+  pass "updates the first comment when multiple matches exist"
+else
+  fail "updates the first comment when multiple matches exist" "$(cat "$work/gh.log")"
 fi
 if out=$("$comment" "12; rm -rf /" ref 2>&1); then fail "rejects a malformed pr-number" "$out"; else
   pass "rejects a malformed pr-number"
