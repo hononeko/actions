@@ -45,6 +45,9 @@ jobs:
       - name: Snapshot pattern tests
         run: tests/snapshot-pattern.test.sh
 
+      - name: Smoke test script tests
+        run: tests/smoke-test.test.sh
+
       # ghcr-cleanup-action refuses any delete-tags regex that safe-regex2 flags, at the version in its package.json.
       - name: Snapshot pattern passes the cleanup action's regex check
         run: |

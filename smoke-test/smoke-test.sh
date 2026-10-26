@@ -22,7 +22,16 @@ timeout_s=${SMOKE_TIMEOUT_S:-10}
 max_mib=${SMOKE_MAX_MEMORY_MIB:-64}
 started_re=${SMOKE_STARTED_REGEX-}
 name="smoke-$$"
-host_port=18080
+
+if ! [[ $timeout_s =~ ^[1-9][0-9]*$ ]]; then
+  echo "::error::timeout must be a positive integer, got '$timeout_s'"
+  exit 1
+fi
+
+if ! [[ $max_mib =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  echo "::error::max-memory-mib must be a positive number, got '$max_mib'"
+  exit 1
+fi
 
 env_file=$(mktemp)
 cleanup() {
@@ -38,19 +47,30 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
 fi
 
 start_ns=$(date +%s%N)
-docker run -d --name "$name" --env-file "$env_file" -p "$host_port:$port" "$image" >/dev/null
+docker run -d --name "$name" --env-file "$env_file" -p "127.0.0.1::$port" "$image" >/dev/null
+host_port=$(docker port "$name" "$port" 2>/dev/null | head -n 1 | awk -F: '{print $NF}' || true)
+if [ -z "$host_port" ]; then
+  if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" != "true" ]; then
+    echo "::error::$image exited before $path answered"
+    docker logs "$name"
+    exit 1
+  fi
+  echo "::error::$image failed to bind port $port"
+  docker logs "$name"
+  exit 1
+fi
 
-url="http://localhost:$host_port$path"
+url="http://127.0.0.1:$host_port$path"
 while true; do
   status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "$url" || true)
-  if [ "$status" != "000" ] && [ -n "$status" ]; then break; fi
-  if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != "true" ]; then
+  if [[ $status =~ ^($status_re)$ ]]; then break; fi
+  if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" != "true" ]; then
     echo "::error::$image exited before $path answered"
     docker logs "$name"
     exit 1
   fi
   if (( ($(date +%s%N) - start_ns) / 1000000000 >= timeout_s )); then
-    echo "::error::$image did not answer $path within ${timeout_s}s"
+    echo "::error::$image did not answer $path within ${timeout_s}s (last status: ${status:-none})"
     docker logs "$name"
     exit 1
   fi
@@ -58,14 +78,13 @@ while true; do
 done
 ready_ms=$(( ($(date +%s%N) - start_ns) / 1000000 ))
 
-if ! [[ $status =~ ^($status_re)$ ]]; then
-  echo "::error::$image answered $path with HTTP $status, expected $status_re"
+# Let startup work settle before measuring memory.
+sleep 2
+if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" != "true" ]; then
+  echo "::error::$image exited after startup"
   docker logs "$name"
   exit 1
 fi
-
-# Let startup work settle before measuring memory.
-sleep 2
 usage=$(docker stats --no-stream --format '{{.MemUsage}}' "$name" | awk '{print $1}')
 mib=$(awk -v u="$usage" 'BEGIN {
   n = u + 0; unit = u; sub(/^[0-9.]+/, "", unit)

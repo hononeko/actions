@@ -12,6 +12,7 @@ tests/bun-setup.test.sh
 tests/gradle-setup.test.sh
 tests/publish-image.test.sh
 tests/snapshot-pattern.test.sh
+tests/smoke-test.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
   gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh tests/*.sh
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
