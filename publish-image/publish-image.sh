@@ -26,6 +26,10 @@ fail() {
 name_re='^[a-z0-9]+([.-][a-z0-9]+)*(:[0-9]+)?(/[a-z0-9]+([._-]+[a-z0-9]+)*)+$'
 [[ $image =~ $name_re ]] || fail "'$image' isn't an image name like ghcr.io/owner/name"
 
+if [ -n "$expected" ] && ! [[ $expected =~ ^[1-9][0-9]*$ ]]; then
+  fail "Expected a positive integer for expected-digests, got '$expected'"
+fi
+
 sources=()
 shopt -s nullglob
 for file in "$dir"/*; do
