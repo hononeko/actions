@@ -67,7 +67,7 @@ runs:
         minor_pattern: "/^feat(\\([^)]*\\))?:/"
         # docs: and test: commits never bump the version; every other type bumps at least the patch. A breaking
         # docs!: still matches major_pattern.
-        ignore_commits_pattern: "/^(docs|test)(\\(.+\\))?:/"
+        ignore_commits_pattern: "/^(docs|test)(\\([^)]*\\))?:/"
         version_format: "${major}.${minor}.${patch}"
 
     # N counts every commit since the last release, so each new commit gets a new RC number. The action's own
@@ -83,9 +83,10 @@ runs:
         PR_NUMBER: ${{ inputs.pr-number }}
         PR_HEAD_SHA: ${{ inputs.head-sha }}
       run: |
-        previous=$(git describe --tags --abbrev=0 --match "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || true)
+        previous=$(git describe --tags --abbrev=0 --match "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" --exclude "*-*" 2>/dev/null || true)
         if [ -n "$previous" ]; then n=$(git rev-list --count "$previous..HEAD"); else n=$(git rev-list --count HEAD); fi
-        sha=$(git rev-parse --short=7 HEAD)
+        full_sha=$(git rev-parse HEAD)
+        sha=${full_sha:0:7}
         {
           echo "previous_tag=$previous"
           echo "rc_version=$VERSION-rc.$n"

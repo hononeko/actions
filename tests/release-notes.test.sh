@@ -16,18 +16,24 @@ git config tag.gpgsign false
 commit() { git commit -q --allow-empty -m "$1" ${2:+-m "$2"}; }
 
 commit "feat: first release"
+first_sha=$(git rev-parse HEAD)
 git tag v1.0.0
 commit "feat(ui): add a dark theme (#12)"
 commit "fix: handle empty input (#13)"
 commit "ci(cd): cache the Go build (#14)"
 commit "chore(deps): update module foo to v2 (#15)"
 commit "docs: explain the config"
+docs_sha=$(git rev-parse HEAD)
 commit "feat(api)!: drop the v1 endpoints (#16)"
 commit "refactor: split the parser (#17)" "BREAKING CHANGE: the parser package moved"
 commit "test: cover the parser"
+test_sha=$(git rev-parse HEAD)
 commit "feat: describe the rules (#18)" "Mentions type!: and BREAKING CHANGE: inline, which isn't a footer."
 commit "fix!(legacy): old bang placement (#19)"
 commit "chore: rename the config (#20)" "BREAKING-CHANGE: config.yml is now settings.yml"
+commit "feat(parser): add support (nested parens): foo (#21)"
+commit "fix(parser): handle error (nested parens): bar (#22)"
+commit "ci(workflow): matrix support (nested parens): baz (#23)"
 
 export GITHUB_REPOSITORY=owner/repo
 unset GH_TOKEN
@@ -58,20 +64,23 @@ check "groups commits since the last release" "$(
 
 * feat(ui): add a dark theme #12
 * feat: describe the rules #18
+* feat(parser): add support (nested parens): foo #21
 
 ## 🐛 Bug fixes
 
 * fix: handle empty input #13
+* fix(parser): handle error (nested parens): bar #22
 
 ## 👷 CI
 
 * ci(cd): cache the Go build #14
+* ci(workflow): matrix support (nested parens): baz #23
 
 ## 📦 Others
 
 * chore(deps): update module foo to v2 #15
-* docs: explain the config $(git rev-parse --short=7 HEAD~6)
-* test: cover the parser $(git rev-parse --short=7 HEAD~3)
+* docs: explain the config ${docs_sha:0:7}
+* test: cover the parser ${test_sha:0:7}
 
 **Full Changelog**: https://github.com/owner/repo/compare/v1.0.0...v2.0.0
 EOF
@@ -81,11 +90,21 @@ check "first release lists every commit and leaves out empty sections" "$(
   cat <<EOF
 ## 🚀 Features
 
-* feat: first release $(git rev-parse --short=7 v1.0.0)
+* feat: first release ${first_sha:0:7}
 
 **Full Changelog**: https://github.com/owner/repo/commits/v1.0.0
 EOF
 )" "" v1.0.0 v1.0.0
+
+check "defaults to short sha when tag is omitted" "$(
+  cat <<EOF
+## 🚀 Features
+
+* feat: first release ${first_sha:0:7}
+
+**Full Changelog**: https://github.com/owner/repo/commits/${first_sha:0:7}
+EOF
+)" "" v1.0.0
 
 if "$script" no-such-tag HEAD >/dev/null 2>&1; then
   echo "FAIL: a bad range must fail"
