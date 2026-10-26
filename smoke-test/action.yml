@@ -5,7 +5,9 @@ description: >-
 
 inputs:
   image:
-    description: "Image to run, e.g. smoke:amd64 (built with `load: true`)"
+    description: >-
+      Image to run: a local one, e.g. smoke:amd64 (built with `load: true`), or a registry reference such as one
+      pushed by digest, which is pulled before the clock starts
     required: true
   port:
     description: Container port to probe
