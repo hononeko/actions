@@ -85,7 +85,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
     max-memory-mib: "32"
 ```
 
-It fails when the container exits or doesn't answer within `timeout` seconds (10), when the status doesn't match, or when it uses more than `max-memory-mib` (64) after startup. `started-regex` picks the app's own startup time out of its logs for the report.
+`image` can also be a registry reference (e.g. an image pushed by digest); it's pulled before timing starts, so `timeout` and the reported time to answer never include the download. It fails when the container exits or doesn't answer within `timeout` seconds (10), when the status doesn't match, or when it uses more than `max-memory-mib` (64) after startup. `started-regex` picks the app's own startup time out of its logs for the report.
 
 ## Bun setup
 

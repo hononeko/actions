@@ -10,8 +10,8 @@
 #   SMOKE_MAX_MEMORY_MIB  fail if it uses more memory than this once started (default 64)
 #   SMOKE_STARTED_REGEX   optional regex whose first number in the logs is the app's own startup time, in seconds
 #
-# "Time to answer" includes Docker starting the container. Results are printed and, in GitHub Actions, added to the
-# job summary.
+# "Time to answer" includes Docker starting the container, but not pulling the image. Results are printed and, in
+# GitHub Actions, added to the job summary.
 set -euo pipefail
 
 image=${1:?usage: smoke-test.sh <image>}
@@ -31,6 +31,11 @@ cleanup() {
 }
 trap cleanup EXIT
 printf '%s\n' "${SMOKE_ENV-}" | sed '/^[[:space:]]*$/d' > "$env_file"
+
+# Pull a registry image first, so the timeout and "time to answer" measure the container, not the download.
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+  docker pull --quiet "$image" >/dev/null
+fi
 
 start_ns=$(date +%s%N)
 docker run -d --name "$name" --env-file "$env_file" -p "$host_port:$port" "$image" >/dev/null
