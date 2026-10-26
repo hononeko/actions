@@ -27,8 +27,9 @@ trim() {
   printf '%s' "$s"
 }
 
-if [ -n "${JAVA_VERSION_INPUT:-}" ]; then
-  version=$JAVA_VERSION_INPUT
+trimmed_version_input=$(trim "${JAVA_VERSION_INPUT:-}")
+if [ -n "$trimmed_version_input" ]; then
+  version=$trimmed_version_input
   source="the java-version input"
 elif [ -f "$dir/.java-version" ]; then
   version=$(head -n 1 "$dir/.java-version")
@@ -54,8 +55,9 @@ if ! [[ $version =~ ^[0-9]+(\.[0-9]+\.[0-9]+(\.[0-9]+)?(\+[0-9A-Za-z.-]+)?)?$ ]]
   exit 1
 fi
 
-distribution=$(trim "${JAVA_DISTRIBUTION_INPUT:-}")
-if [ -n "$distribution" ]; then
+trimmed_dist_input=$(trim "${JAVA_DISTRIBUTION_INPUT:-}")
+if [ -n "$trimmed_dist_input" ]; then
+  distribution=$trimmed_dist_input
   distribution_source="the java-distribution input"
 elif [ -n "$prefix" ]; then
   distribution=$prefix

@@ -30,6 +30,11 @@ if ! [[ $url =~ /gradle-([^/]+)-(bin|all)\.zip$ ]]; then
 fi
 version=${BASH_REMATCH[1]}
 
+if ! [[ $version =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Gradle version \"$version\" in distributionUrl of $props is not an exact version like 9.8.2" >&2
+  exit 1
+fi
+
 if [ -z "$(property distributionSha256Sum)" ]; then
   echo "$props has no distributionSha256Sum, so the Gradle distribution isn't verified: run" \
     "\"./gradlew wrapper --gradle-version $version --gradle-distribution-sha256-sum <sha256>\"" >&2

@@ -59,16 +59,20 @@ runs:
         PROJECT_DIR: ${{ inputs.working-directory }}
       run: |
         err=$(mktemp)
+        trap 'rm -f "$err"' EXIT
         if ! java=$("$GITHUB_ACTION_PATH/resolve-version.sh" "$PROJECT_DIR" 2>"$err"); then
           echo "::error title=gradle-setup::$(cat "$err")"
+          rm -f "$err"
           exit 1
         fi
         if ! gradle_version=$("$GITHUB_ACTION_PATH/wrapper-version.sh" "$PROJECT_DIR" 2>"$err"); then
           echo "::error title=gradle-setup::$(cat "$err")"
+          rm -f "$err"
           exit 1
         fi
         # A wrapper without a distribution checksum still builds, so it only warns
         if [ -s "$err" ]; then echo "::warning title=gradle-setup::$(cat "$err")"; fi
+        rm -f "$err"
         {
           echo "$java"
           echo "gradle-version=$gradle_version"

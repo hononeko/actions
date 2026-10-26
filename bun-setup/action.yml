@@ -44,11 +44,25 @@ runs:
         PROJECT_DIR: ${{ inputs.working-directory }}
       run: |
         err=$(mktemp)
+        trap 'rm -f "$err"' EXIT
         if ! version=$("$GITHUB_ACTION_PATH/resolve-version.sh" "$PROJECT_DIR" 2>"$err"); then
           echo "::error title=bun-setup::$(cat "$err")"
+          rm -f "$err"
           exit 1
         fi
+        rm -f "$err"
         echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Verify lockfile
+      if: inputs.install == 'true'
+      shell: bash
+      env:
+        PROJECT_DIR: ${{ inputs.working-directory }}
+      run: |
+        if [ ! -f "$PROJECT_DIR/bun.lock" ]; then
+          echo "::error title=bun-setup::No bun.lock found in $PROJECT_DIR"
+          exit 1
+        fi
 
     - name: Install Bun
       uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
