@@ -21,7 +21,12 @@ set -euo pipefail
 
 prev_tag=${1-}
 ref=${2:-HEAD}
-to=${3:-$(git rev-parse --short "$ref")}
+if [ -n "${3-}" ]; then
+  to=$3
+else
+  full_ref=$(git rev-parse "$ref")
+  to=${full_ref:0:7}
+fi
 repo=${GITHUB_REPOSITORY:-$(git remote get-url origin | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')}
 
 range=$ref
@@ -45,7 +50,7 @@ for sha in $commits; do
     entry="* ${BASH_REMATCH[1]} #${BASH_REMATCH[2]}"
   else
     pr=$(pr_of "$sha")
-    if [ -n "$pr" ]; then entry="* $subject #$pr"; else entry="* $subject ${sha::7}"; fi
+    if [ -n "$pr" ]; then entry="* $subject #$pr"; else entry="* $subject ${sha:0:7}"; fi
   fi
 
   # The version action's major rule, matched the way semantic-version does: the header pattern ("!" before the
@@ -54,11 +59,11 @@ for sha in $commits; do
   bang='^[a-z]+(\([^)]*\))?!(\([^)]*\))?:'
   if [[ $subject =~ $bang || $body =~ $bang ]] || grep -qE '^BREAKING[ -]CHANGE:' <<<"$body"; then
     breaking+=("$entry")
-  elif [[ $subject =~ ^feat(\(.*\))?: ]]; then
+  elif [[ $subject =~ ^feat(\([^\)]*\))?: ]]; then
     features+=("$entry")
-  elif [[ $subject =~ ^fix(\(.*\))?: ]]; then
+  elif [[ $subject =~ ^fix(\([^\)]*\))?: ]]; then
     fixes+=("$entry")
-  elif [[ $subject =~ ^ci(\(.*\))?: ]]; then
+  elif [[ $subject =~ ^ci(\([^\)]*\))?: ]]; then
     ci+=("$entry")
   else
     others+=("$entry")
