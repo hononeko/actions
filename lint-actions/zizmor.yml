@@ -3,3 +3,8 @@ rules:
   # Suggests uses: $/path for the repository's own actions and workflows, which actionlint rejects.
   self-repository:
     disable: true
+  # hononeko/actions is used by its major tag (v1), which every release moves; everything else stays pinned by hash.
+  unpinned-uses:
+    config:
+      policies:
+        hononeko/actions/*: ref-pin

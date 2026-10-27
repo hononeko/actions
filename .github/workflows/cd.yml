@@ -1,8 +1,8 @@
 name: Release
 
-# Every push to main that warrants a new version releases it: a vX.Y.Z tag and a GitHub Release with grouped notes.
-# Consumers pin the actions by commit SHA, and Renovate follows these releases. Dispatch with dry_run to see the
-# version and notes without releasing.
+# Every push to main that warrants a new version releases it: a vX.Y.Z tag and a GitHub Release with grouped notes,
+# and moves the major tag (v1) to it. Consumers use the major tag, so they run the latest compatible release. Dispatch
+# with dry_run to see the version and notes without releasing.
 on:
   push:
     branches: ["main"]
@@ -107,3 +107,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$VERSION_TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION_TAG" --notes-file release-notes.md
+
+      # Consumers use the major tag (v1), so every compatible release reaches them without a Renovate pull request. A
+      # breaking change releases a new major, which they move to on purpose.
+      - name: Move the major tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          major=${VERSION_TAG%%.*}
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          echo "::notice::$major now points at $VERSION_TAG ($GITHUB_SHA)"

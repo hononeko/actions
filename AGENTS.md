@@ -1,6 +1,6 @@
 # Agent & Contributor Guidelines (`AGENTS.md`)
 
-Shared composite actions consumed by other repositories. A change here reaches every consumer through Renovate, so changes to inputs, outputs or rules must stay backwards compatible. If one can't, it's a `feat!:`.
+Shared composite actions consumed by other repositories. Consumers use the major tag (`@v1`), which every release moves, so a change here reaches all of them as soon as it's released. Changes to inputs, outputs or rules must stay backwards compatible. If one can't, it's a `feat!:`, which releases a new major that consumers move to on purpose.
 
 ## 1. Quality Gates
 

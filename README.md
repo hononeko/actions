@@ -28,11 +28,11 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
     fetch-depth: 0
 
 - id: version
-  uses: hononeko/actions/version@<sha> # vX.Y.Z
+  uses: hononeko/actions/version@v1
   with:
     tag-prefix: v # "" for tags like 1.2.3
 
-- uses: hononeko/actions/release-notes@<sha> # vX.Y.Z
+- uses: hononeko/actions/release-notes@v1
   with:
     previous-tag: ${{ steps.version.outputs.previous-tag }}
     tag: ${{ steps.version.outputs.version-tag }}
@@ -40,7 +40,25 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 - run: gh release create "${{ steps.version.outputs.version-tag }}" --notes-file release-notes.md
 ```
 
-Pin both actions to the same commit SHA; Renovate's `helpers:pinGitHubActionDigests` keeps them current.
+### Updates
+
+Use the actions by their major tag, `@v1`. Every release moves it, so a repository runs the latest compatible release as soon as it's out, with no pull request to merge. A breaking change releases a new major (`v2`), which each repository moves to on purpose.
+
+- **Renovate:** `helpers:pinGitHubActionDigests` would pin `@v1` to a commit SHA and open a pull request for every release. Extend this repository's preset, which keeps the tag and only offers a new major:
+
+  ```json
+  { "extends": ["github>hononeko/actions//renovate/downstream"] }
+  ```
+
+- **zizmor:** its `unpinned-uses` audit wants every action pinned by hash. `lint-actions` allows `hononeko/actions/*` by tag when a repository has no zizmor config of its own; a repository with one adds the same policy:
+
+  ```yaml
+  rules:
+    unpinned-uses:
+      config:
+        policies:
+          hononeko/actions/*: ref-pin
+  ```
 
 ## Version rules
 
@@ -80,7 +98,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
     load: true
     tags: smoke:amd64
 
-- uses: hononeko/actions/smoke-test@<sha> # vX.Y.Z
+- uses: hononeko/actions/smoke-test@v1
   with:
     image: smoke:amd64
     port: "9090"
@@ -99,7 +117,7 @@ Only the header's `!` and a footer line starting `BREAKING CHANGE:` (or `BREAKIN
 - uses: actions/checkout@<sha> # v7
 
 - id: bun
-  uses: hononeko/actions/bun-setup@<sha> # vX.Y.Z
+  uses: hononeko/actions/bun-setup@v1
   # with:
   #   bun-version: 1.4.3      # default: .bun-version, then package.json's "packageManager": "bun@X.Y.Z"
   #   working-directory: app  # default: .
@@ -122,7 +140,7 @@ Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when th
 - uses: actions/checkout@<sha> # v7
 
 - id: gradle
-  uses: hononeko/actions/gradle-setup@<sha> # vX.Y.Z
+  uses: hononeko/actions/gradle-setup@v1
   # with:
   #   java-version: 25.0.1       # default: .java-version
   #   java-distribution: zulu    # default: a prefix on the version, then temurin
@@ -157,7 +175,7 @@ steps:
       password: ${{ secrets.GITHUB_TOKEN }}
 
   - id: publish
-    uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+    uses: hononeko/actions/publish-image@v1
     with:
       image: ghcr.io/owner/app # lowercase
       tags: |
@@ -204,7 +222,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - id: version
-        uses: hononeko/actions/version@<sha> # vX.Y.Z
+        uses: hononeko/actions/version@v1
         with:
           pr-number: ${{ github.event.pull_request.number }}
 
@@ -235,7 +253,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+      - uses: hononeko/actions/publish-image@v1
         with:
           image: ghcr.io/owner/app
           tags: |
@@ -273,7 +291,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
       - id: version
-        uses: hononeko/actions/version@<sha> # vX.Y.Z
+        uses: hononeko/actions/version@v1
         with:
           pr-number: ${{ github.event.pull_request.number }}
 
@@ -302,7 +320,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: hononeko/actions/publish-image@<sha> # vX.Y.Z
+      - uses: hononeko/actions/publish-image@v1
         with:
           image: ghcr.io/owner/app
           tags: |
@@ -327,7 +345,7 @@ jobs:
     permissions:
       packages: write
     steps:
-      - uses: hononeko/actions/prune-snapshots@<sha> # vX.Y.Z
+      - uses: hononeko/actions/prune-snapshots@v1
         with:
           package: app
           pr-number: ${{ github.event.pull_request.number }}
@@ -348,11 +366,11 @@ lint:
     - uses: actions/checkout@<sha> # v7
       with:
         persist-credentials: false
-    - uses: hononeko/actions/lint-actions@<sha> # vX.Y.Z
-    - uses: hononeko/actions/lint-docker@<sha> # vX.Y.Z
-    - uses: hononeko/actions/lint-go@<sha> # vX.Y.Z
-    - uses: hononeko/actions/lint-kotlin@<sha> # vX.Y.Z
-    - uses: hononeko/actions/lint-js@<sha> # vX.Y.Z
+    - uses: hononeko/actions/lint-actions@v1
+    - uses: hononeko/actions/lint-docker@v1
+    - uses: hononeko/actions/lint-go@v1
+    - uses: hononeko/actions/lint-kotlin@v1
+    - uses: hononeko/actions/lint-js@v1
 ```
 
 Use the ones for the project's languages. Every linter annotates its findings on the pull request and fails the job, so the job can be a required check. Each reads the project's own config, so rules are tuned per repository, in the repository:
@@ -377,7 +395,7 @@ Use the ones for the project's languages. Every linter annotates its findings on
 - run: go test -coverprofile=coverage.out ./...
 # or ./gradlew koverXmlReport | ./gradlew jacocoTestReport | bun test --coverage --coverage-reporter=lcov
 
-- uses: hononeko/actions/coverage@<sha> # vX.Y.Z
+- uses: hononeko/actions/coverage@v1
   with:
     files: coverage.out # build/reports/kover/report.xml, **/build/reports/jacoco/test/*.xml, coverage/*/lcov.info
     min-coverage: "80"
