@@ -12,11 +12,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: ShellCheck
         run: >-
           shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh
-          gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh tests/*.sh
+          gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
 
       # actionlint only reads an action's metadata where a workflow here uses it, so every action.yml is checked too:
       # a YAML error in one only shows up when a consumer loads it.
@@ -27,8 +29,9 @@ jobs:
             echo "ok $f"
           done
 
-      - name: actionlint
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
+      # actionlint and zizmor, through this repository's own lint-actions.
+      - name: Lint workflows and actions
+        uses: ./lint-actions
 
       - name: Release notes tests
         run: tests/release-notes.test.sh
@@ -48,9 +51,19 @@ jobs:
       - name: Smoke test script tests
         run: tests/smoke-test.test.sh
 
+      - name: Coverage tests
+        run: tests/coverage.test.sh
+
+      - name: Lint annotation tests
+        run: tests/lint-annotations.test.sh
+
+      - name: detekt checksum tests
+        run: tests/lint-kotlin.test.sh
+
       # ghcr-cleanup-action refuses any delete-tags regex that safe-regex2 flags, at the version in its package.json.
+      # zizmor's adhoc-packages is ignored: the version is pinned and its install scripts don't run.
       - name: Snapshot pattern passes the cleanup action's regex check
-        run: |
+        run: | # zizmor: ignore[adhoc-packages]
           npm install --no-save --ignore-scripts --silent safe-regex2@5.1.1
           for pr in 1 42 99999; do
             pattern=$(prune-snapshots/snapshot-pattern.sh "$pr")
@@ -69,6 +82,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Version
@@ -115,6 +129,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           path: src
 
       - name: Create the fixture repository
@@ -228,6 +243,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           path: src
 
       - name: Create the fixture repository
@@ -273,6 +289,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Pull a test image
         run: docker pull nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
@@ -302,6 +320,141 @@ jobs:
         run: |
           [ "$OUTCOME" = "failure" ]
 
+  # Runs the lint actions the way a consumer would, against the fixture projects in tests/fixtures: each passes its
+  # clean project, then fails once an issue is added.
+  lint:
+    name: Lint actions
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Lint Go
+        uses: ./lint-go
+        with:
+          working-directory: tests/fixtures/go-project
+
+      - name: Lint Kotlin
+        uses: ./lint-kotlin
+        with:
+          working-directory: tests/fixtures/kotlin-project
+
+      - name: Lint JS/TS
+        uses: ./lint-js
+        with:
+          working-directory: tests/fixtures/js-project
+
+      - name: Lint Docker
+        uses: ./lint-docker
+        with:
+          dockerfiles: tests/fixtures/docker/Dockerfile
+
+      - name: Add an issue to each project
+        run: |
+          printf 'package fixture\n\nimport "os"\n\n// Clean removes a file.\nfunc Clean() {\n\tos.Remove("x")\n}\n' \
+            > tests/fixtures/go-project/issue.go
+          printf 'package fixture\n\nfun empty() {}\n' > tests/fixtures/kotlin-project/src/main/kotlin/fixture/Issue.kt
+          printf 'export function stop(): void {\n  debugger;\n}\n' > tests/fixtures/js-project/src/issue.ts
+          printf 'FROM alpine:latest\n' > tests/fixtures/docker/Dockerfile.issue
+
+      - name: Lint Go with an unchecked error
+        id: go
+        continue-on-error: true
+        uses: ./lint-go
+        with:
+          working-directory: tests/fixtures/go-project
+
+      - name: Lint Kotlin with an empty function
+        id: kotlin
+        continue-on-error: true
+        uses: ./lint-kotlin
+        with:
+          working-directory: tests/fixtures/kotlin-project
+
+      - name: Lint JS/TS with a debugger statement
+        id: js
+        continue-on-error: true
+        uses: ./lint-js
+        with:
+          working-directory: tests/fixtures/js-project
+
+      - name: Lint Docker with an image on latest
+        id: docker
+        continue-on-error: true
+        uses: ./lint-docker
+        with:
+          dockerfiles: tests/fixtures/docker/Dockerfile tests/fixtures/docker/Dockerfile.issue
+
+      - name: Check each failed
+        env:
+          OUTCOMES: ${{ steps.go.outcome }} ${{ steps.kotlin.outcome }} ${{ steps.js.outcome }} ${{ steps.docker.outcome }}
+        run: |
+          echo "$OUTCOMES"
+          [ "$OUTCOMES" = "failure failure failure failure" ]
+
+  # Runs coverage on the Go fixture's tests. On a pull request it also counts the changed lines, from the shallow merge
+  # commit actions/checkout makes.
+  coverage:
+    name: Coverage action
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tests/fixtures/go-project
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: tests/fixtures/go-project/go.mod
+          cache: false
+
+      - name: Test with coverage
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Coverage
+        id: coverage
+        uses: ./coverage
+        with:
+          files: coverage.out
+          working-directory: tests/fixtures/go-project
+          min-coverage: "60"
+          title: Fixture coverage
+
+      - name: Check the outputs
+        env:
+          ACTUAL: ${{ steps.coverage.outputs.coverage }} ${{ steps.coverage.outputs.covered }}/${{ steps.coverage.outputs.total }}
+          CHANGED_TOTAL: ${{ steps.coverage.outputs.changed-total }}
+        run: |
+          echo "coverage $ACTUAL, changed lines counted: $CHANGED_TOTAL"
+          [ "$ACTUAL" = "66.67 2/3" ]
+          [[ $CHANGED_TOTAL =~ ^[0-9]+$ ]]
+
+      - name: Coverage below the minimum
+        id: below
+        continue-on-error: true
+        uses: ./coverage
+        with:
+          files: coverage.out
+          working-directory: tests/fixtures/go-project
+          min-coverage: "70"
+          title: Fixture coverage, below the minimum
+
+      - name: Check it failed
+        env:
+          OUTCOME: ${{ steps.below.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
+
   # Runs bun-setup the way a consumer would, against the fixture projects in tests/fixtures.
   bun-setup:
     name: Bun setup action
@@ -311,6 +464,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Bun from .bun-version
         id: pinned
@@ -394,6 +549,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up an unpinned project
         id: unpinned

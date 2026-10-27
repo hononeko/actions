@@ -1,0 +1,51 @@
+name: Lint JS/TS
+description: >-
+  Lints JavaScript and TypeScript with oxlint, using the project's .oxlintrc.json when there is one. Findings are
+  annotated on the pull request and fail the job, warnings included unless deny-warnings is "false". Needs no project
+  dependencies; runs oxlint through npx.
+
+inputs:
+  working-directory:
+    description: Directory to lint, recursively
+    required: false
+    default: "."
+  oxlint-version:
+    description: Exact oxlint version, e.g. 1.90.0
+    required: false
+    # renovate: datasource=npm depName=oxlint
+    default: 1.90.0
+  deny-warnings:
+    description: '"false" to fail only on errors'
+    required: false
+    default: "true"
+  args:
+    description: Additional oxlint arguments, e.g. -D suspicious --ignore-pattern "**/generated/**"
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: oxlint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        OXLINT_VERSION: ${{ inputs.oxlint-version }}
+        DENY_WARNINGS: ${{ inputs.deny-warnings }}
+        OXLINT_ARGS: ${{ inputs.args }}
+      run: |
+        if ! [[ $OXLINT_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error title=lint-js::oxlint-version must be an exact version like 1.90.0, got '$OXLINT_VERSION'"
+          exit 1
+        fi
+        args=(--format=github)
+        [ "$DENY_WARNINGS" = "false" ] || args+=(--deny-warnings)
+        # Split on whitespace as documented, without globbing.
+        set -f
+        # shellcheck disable=SC2206
+        args+=($OXLINT_ARGS)
+        set +f
+        # oxlint's paths are relative to the working directory; annotations need them relative to the repository.
+        prefix=$(git rev-parse --show-prefix 2>/dev/null | sed 's/[\\&|]/\\&/g' || true)
+        set -o pipefail
+        npx --yes "oxlint@$OXLINT_VERSION" "${args[@]}" | sed "s|^\(::[a-z]* file=\)|\1$prefix|"

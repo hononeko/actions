@@ -1,0 +1,33 @@
+name: Lint Docker
+description: >-
+  Lints the repository's Dockerfiles with hadolint, using its .hadolint.yaml when there is one. Findings are annotated
+  on the pull request, and those at or above the failure threshold fail the job. Images pinned as tag@digest, the way
+  Renovate pins them, pass.
+
+inputs:
+  dockerfiles:
+    description: >-
+      Dockerfiles relative to the repository, separated by spaces or newlines; empty for every tracked Dockerfile,
+      Containerfile, Dockerfile.* and *.Dockerfile
+    required: false
+    default: ""
+  failure-threshold:
+    description: Lowest level that fails the job, one of error, warning, info, style or ignore
+    required: false
+    default: warning
+  config:
+    description: hadolint config relative to the repository; empty for hadolint's own lookup (.hadolint.yaml)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: hadolint
+      shell: bash
+      env:
+        HADOLINT_FILES: ${{ inputs.dockerfiles }}
+        HADOLINT_THRESHOLD: ${{ inputs.failure-threshold }}
+        HADOLINT_CONFIG: ${{ inputs.config }}
+        HADOLINT_IMAGE: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+      run: '"$GITHUB_ACTION_PATH/hadolint.sh"'

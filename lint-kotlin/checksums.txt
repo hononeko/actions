@@ -1,0 +1,4 @@
+2ce2ff952e150baf28a29cda70a363b0340b3e81a55f43e51ec5edffc3d066c1  detekt-cli-1.23.8-all.jar
+a18a3f680d232ad746ccec3d5a251776ce39131b395c455b92e1bb0a9e8fb6ba  detekt-formatting-1.23.8.jar
+d46ca62ea4d62769b5d5c3ba94d49fa9b80ba11c7dba74ddb6df7fcc2c19c5fd  detekt-cli-2.0.0-alpha.6-all.jar
+48a8e4aee758334dc885a88a813ae6295d4218a4ef980afa7be036dee4c9d956  detekt-rules-ktlint-wrapper-2.0.0-alpha.6.jar

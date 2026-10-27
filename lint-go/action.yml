@@ -1,0 +1,58 @@
+name: Lint Go
+description: >-
+  Lints a Go module: checks go.mod and go.sum are tidy, then runs golangci-lint with the module's .golangci.yml (or
+  golangci-lint's defaults). Findings are annotated on the pull request and fail the job. Sets up Go from go.mod.
+
+inputs:
+  working-directory:
+    description: Directory with the module's go.mod
+    required: false
+    default: "."
+  golangci-lint-version:
+    description: golangci-lint version, e.g. v2.15.0
+    required: false
+    # renovate: datasource=github-releases depName=golangci/golangci-lint
+    default: v2.15.0
+  only-new-issues:
+    description: '"true" to report only issues in the lines a pull request or push changes'
+    required: false
+    default: "false"
+  tidy:
+    description: '"false" to skip checking that go.mod and go.sum are tidy'
+    required: false
+    default: "true"
+  args:
+    description: Additional golangci-lint arguments, e.g. --timeout=10m
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: ${{ inputs.working-directory }}/go.mod
+        # A module without dependencies has no go.sum to key the cache on.
+        cache: ${{ hashFiles(format('{0}/go.sum', inputs.working-directory)) != '' }}
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+    - name: Check go.mod and go.sum are tidy
+      if: inputs.tidy != 'false'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if ! diff=$(go mod tidy -diff); then
+          echo "::error file=go.mod,title=lint-go::go.mod or go.sum isn't tidy; run go mod tidy"
+          echo "$diff"
+          exit 1
+        fi
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+      with:
+        version: ${{ inputs.golangci-lint-version }}
+        working-directory: ${{ inputs.working-directory }}
+        only-new-issues: ${{ inputs.only-new-issues }}
+        problem-matchers: true
+        args: ${{ inputs.args }}

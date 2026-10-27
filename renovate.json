@@ -12,10 +12,36 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "actionlint image run in validate.yml",
-      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
-      "matchStrings": ["docker run [^\\n]*?(?<depName>rhysd/actionlint):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
+      "description": "Images pinned as name:tag@sha256:digest in actions and workflows, e.g. hadolint and actionlint in the lint actions",
+      "managerFilePatterns": [
+        "/(^|/)action\\.ya?ml$/",
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Tool versions an action defaults to, marked by a # renovate: comment above the input's default",
+      "managerFilePatterns": [
+        "/(^|/)action\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+default: (?<currentValue>\\S+)"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "lint-kotlin checks the detekt jars against lint-kotlin/checksums.txt, and tests/lint-kotlin.test.sh fails until the new version's are there",
+      "matchDepNames": [
+        "detekt/detekt"
+      ],
+      "prBodyNotes": [
+        "Add the SHA-256 of the new version's `detekt-cli-\u2026-all.jar` and `detekt-formatting-\u2026jar` (or `detekt-rules-ktlint-wrapper-\u2026jar` from 2.0) to `lint-kotlin/checksums.txt` before merging."
+      ]
     }
   ]
 }

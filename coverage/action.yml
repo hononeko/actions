@@ -1,0 +1,107 @@
+name: Coverage
+description: >-
+  Reports test coverage from Go (go test -coverprofile), JaCoCo or Kover XML (Java, Kotlin) or lcov (JS/TS: Bun,
+  Vitest, Jest) reports: overall, and on a pull request the coverage of the lines it changes, with the uncovered ones
+  listed. Writes the job summary, optionally keeps one comment on the pull request, and fails below the given minimums.
+  Run it after the tests, in the directory they ran in.
+
+inputs:
+  files:
+    description: Coverage reports, paths or globs separated by spaces or newlines (** matches directories)
+    required: true
+  format:
+    description: auto (from each report's first line), go, jacoco or lcov
+    required: false
+    default: auto
+  working-directory:
+    description: Directory the tests ran in; report paths and globs are relative to it
+    required: false
+    default: "."
+  min-coverage:
+    description: Minimum overall coverage in percent, e.g. "80"; empty for none
+    required: false
+    default: ""
+  min-changed-coverage:
+    description: Minimum coverage of the lines a pull request changes, in percent; empty for none
+    required: false
+    default: ""
+  base:
+    description: Commit the changed lines are counted from; empty to report overall coverage only
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  title:
+    description: Heading of the job summary and the pull request comment; each title keeps its own comment
+    required: false
+    default: Coverage
+  comment-on-pr:
+    description: >-
+      Pull request to keep one comment on with the report; needs the `pull-requests: write` permission. Empty for no
+      comment
+    required: false
+    default: ""
+  token:
+    description: Token for the pull request comment
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  coverage:
+    description: Overall coverage in percent, e.g. 82.35 (statements for Go, lines otherwise)
+    value: ${{ steps.measure.outputs.coverage }}
+  covered:
+    description: Covered statements or lines
+    value: ${{ steps.measure.outputs.covered }}
+  total:
+    description: Coverable statements or lines
+    value: ${{ steps.measure.outputs.total }}
+  changed-coverage:
+    description: Coverage of the changed lines in percent; empty without a base or when no coverable line changed
+    value: ${{ steps.measure.outputs.changed-coverage }}
+  changed-covered:
+    description: Covered changed lines
+    value: ${{ steps.measure.outputs.changed-covered }}
+  changed-total:
+    description: Coverable changed lines
+    value: ${{ steps.measure.outputs.changed-total }}
+
+runs:
+  using: composite
+  steps:
+    - name: Measure coverage
+      id: measure
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COVERAGE_FILES: ${{ inputs.files }}
+        COVERAGE_FORMAT: ${{ inputs.format }}
+        COVERAGE_BASE: ${{ inputs.base }}
+        COVERAGE_MIN: ${{ inputs.min-coverage }}
+        COVERAGE_MIN_CHANGED: ${{ inputs.min-changed-coverage }}
+        COVERAGE_TITLE: ${{ inputs.title }}
+      run: |
+        report=$(mktemp "$RUNNER_TEMP/coverage-XXXXXX.md")
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        COVERAGE_REPORT=$report "$GITHUB_ACTION_PATH/coverage.sh"
+        cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Comment on the pull request
+      if: inputs.comment-on-pr != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        PR: ${{ inputs.comment-on-pr }}
+        REPORT: ${{ steps.measure.outputs.report }}
+        COVERAGE_TITLE: ${{ inputs.title }}
+      run: '"$GITHUB_ACTION_PATH/comment.sh" "$PR" "$REPORT"'
+
+    - name: Check the minimums
+      shell: bash
+      env:
+        FAILURE: ${{ steps.measure.outputs.failure }}
+        REPORT: ${{ steps.measure.outputs.report }}
+      run: |
+        rm -f "$REPORT"
+        if [ -n "$FAILURE" ]; then
+          echo "::error title=coverage::$FAILURE"
+          exit 1
+        fi

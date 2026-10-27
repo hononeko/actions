@@ -1,0 +1,56 @@
+name: Lint Kotlin
+description: >-
+  Lints Kotlin with the detekt CLI, so the build needs no detekt plugin: with config/detekt/detekt.yml on top of
+  detekt's defaults, and config/detekt/baseline.xml for accepted findings, when they exist. Optionally adds detekt's
+  ktlint rules. Findings are annotated on the pull request and fail the job. The download is checked against a pinned
+  checksum.
+
+inputs:
+  working-directory:
+    description: Directory to lint, recursively
+    required: false
+    default: "."
+  detekt-version:
+    description: >-
+      detekt version, e.g. 1.23.8 or 2.0.0-alpha.6. Its config format differs between 1.x and 2.x, so use the one the
+      config was written for
+    required: false
+    # renovate: datasource=github-releases depName=detekt/detekt extractVersion=^v(?<version>.+)$
+    default: 1.23.8
+  config:
+    description: detekt config, relative to working-directory; empty for config/detekt/detekt.yml when it exists
+    required: false
+    default: ""
+  baseline:
+    description: detekt baseline, relative to working-directory; empty for config/detekt/baseline.xml when it exists
+    required: false
+    default: ""
+  ktlint:
+    description: '"true" to add detekt''s ktlint rules (formatting)'
+    required: false
+    default: "false"
+  args:
+    description: Additional detekt arguments, e.g. --excludes **/generated/**
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Cache detekt
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ runner.temp }}/detekt-${{ inputs.detekt-version }}
+        key: detekt-${{ inputs.detekt-version }}-${{ inputs.ktlint }}
+
+    - name: detekt
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        DETEKT_VERSION: ${{ inputs.detekt-version }}
+        DETEKT_CONFIG: ${{ inputs.config }}
+        DETEKT_BASELINE: ${{ inputs.baseline }}
+        DETEKT_KTLINT: ${{ inputs.ktlint }}
+        DETEKT_ARGS: ${{ inputs.args }}
+        DETEKT_CACHE: ${{ runner.temp }}/detekt-${{ inputs.detekt-version }}
+      run: '"$GITHUB_ACTION_PATH/detekt.sh"'

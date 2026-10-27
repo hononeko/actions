@@ -1,0 +1,71 @@
+name: Lint GitHub Actions
+description: >-
+  Lints the repository's workflows and actions with actionlint (syntax, expressions, and ShellCheck on run scripts)
+  and zizmor (security: template injection, excessive permissions, unpinned actions, credential persistence and
+  more). Findings are annotated on the pull request and fail the job. Both read the repository's config,
+  .github/actionlint.yaml and zizmor.yml or .github/zizmor.yml. Without one, this action's own applies: actionlint
+  knows the ubuntu-26.04 runners, and zizmor skips self-repository, whose $/ syntax actionlint rejects.
+
+inputs:
+  zizmor-version:
+    description: >-
+      zizmor version, e.g. 1.31.1; latest for the newest one the pinned zizmor-action knows, so it moves with that
+      action's updates
+    required: false
+    default: latest
+  persona:
+    description: zizmor's auditing persona, one of regular, pedantic or auditor
+    required: false
+    default: regular
+  min-severity:
+    description: Lowest zizmor severity reported, one of informational, low, medium or high; empty for all
+    required: false
+    default: ""
+  online-audits:
+    description: '"false" to skip zizmor''s audits that call GitHub, e.g. for known-vulnerable action versions'
+    required: false
+    default: "true"
+  actionlint:
+    description: '"false" to skip actionlint'
+    required: false
+    default: "true"
+  token:
+    description: Token for zizmor's online audits
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: actionlint
+      if: inputs.actionlint != 'false'
+      shell: bash
+      env:
+        ACTIONLINT_IMAGE: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+      run: '"$GITHUB_ACTION_PATH/actionlint.sh"'
+
+    # zizmor runs after an actionlint failure too, so both report.
+    - name: Choose the zizmor config
+      id: zizmor-config
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        config=""
+        root=$(git rev-parse --show-toplevel)
+        if [ ! -f "$root/zizmor.yml" ] && [ ! -f "$root/.github/zizmor.yml" ]; then
+          config=$GITHUB_ACTION_PATH/zizmor.yml
+        fi
+        echo "config=$config" >> "$GITHUB_OUTPUT"
+
+    - name: zizmor
+      if: ${{ !cancelled() }}
+      uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+      with:
+        config: ${{ steps.zizmor-config.outputs.config }}
+        version: ${{ inputs.zizmor-version }}
+        persona: ${{ inputs.persona }}
+        min-severity: ${{ inputs.min-severity }}
+        online-audits: ${{ inputs.online-audits }}
+        token: ${{ inputs.token }}
+        advanced-security: "false"
+        annotations: "true"

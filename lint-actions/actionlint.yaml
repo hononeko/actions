@@ -1,0 +1,6 @@
+# Used when the repository has no actionlint config of its own. actionlint doesn't know the ubuntu-26.04 runners yet,
+# so they're listed as self-hosted labels.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
