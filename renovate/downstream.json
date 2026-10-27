@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "For repositories using hononeko/actions by its major tag (v1): no pull request for a compatible release, only for a new major",
+  "packageRules": [
+    {
+      "description": "hononeko/actions@v1 already runs every compatible release, so keep the tag (no digest pinning) and update only to a new major, a breaking change",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["hononeko/actions", "hononeko/actions/**"],
+      "pinDigests": false,
+      "minimumReleaseAge": "0 days"
+    }
+  ]
+}
