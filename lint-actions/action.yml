@@ -4,7 +4,8 @@ description: >-
   and zizmor (security: template injection, excessive permissions, unpinned actions, credential persistence and
   more). Findings are annotated on the pull request and fail the job. Both read the repository's config,
   .github/actionlint.yaml and zizmor.yml or .github/zizmor.yml. Without one, this action's own applies: actionlint
-  knows the ubuntu-26.04 runners, and zizmor skips self-repository, whose $/ syntax actionlint rejects.
+  knows the ubuntu-26.04 runners, and zizmor skips self-repository, whose $/ syntax actionlint rejects, and
+  ref-version-mismatch, which Renovate's digest updates already handle.
 
 inputs:
   zizmor-version:
