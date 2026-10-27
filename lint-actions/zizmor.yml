@@ -1,0 +1,5 @@
+# Used when the repository has no zizmor config of its own.
+rules:
+  # Suggests uses: $/path for the repository's own actions and workflows, which actionlint rejects.
+  self-repository:
+    disable: true
