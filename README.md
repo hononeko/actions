@@ -387,7 +387,7 @@ Use the ones for the project's languages. Every linter annotates its findings on
 - **Pinned:** golangci-lint, detekt and oxlint at exact versions, zizmor at the newest version its pinned action locks by hash, the detekt jars checked against checksums in [`lint-kotlin/checksums.txt`](lint-kotlin/checksums.txt), and the hadolint and actionlint images by digest. Another `detekt-version` runs unverified, with a warning. Renovate keeps the tools and images current; a detekt update needs its jars' checksums added, and CI fails until they are.
 - **detekt:** its config format changed in 2.0, so set `detekt-version` to the one the config was written for (`2.0.0-alpha.6` for 2.x). It runs on the runner's JDK 21 when there is one, since its Kotlin compiler may not know the newest JDK. A project that already runs detekt in Gradle can keep doing so.
 - **hadolint:** fails from `warning` up by default; `info` and `style` findings are notices. Images pinned as `tag@sha256:…` pass.
-- **Without config:** `lint-actions` brings its own. actionlint learns the `ubuntu-26.04` runners, and zizmor skips `self-repository`, whose `uses: $/…` actionlint rejects.
+- **Without config:** `lint-actions` brings its own. actionlint learns the `ubuntu-26.04` runners, and zizmor skips `self-repository`, whose `uses: $/…` actionlint rejects, and `ref-version-mismatch`, which fails unrelated pull requests whenever an action's major tag moves on before Renovate's digest update merges.
 
 ## Coverage
 

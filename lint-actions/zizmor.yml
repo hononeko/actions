@@ -8,3 +8,7 @@ rules:
     config:
       policies:
         hononeko/actions/*: ref-pin
+  # Flags a hash pin once the tag in its version comment moves on (# v4 when v4 has a newer commit), which fails
+  # unrelated pull requests until Renovate's digest update merges. Renovate keeps pins and their comments in step.
+  ref-version-mismatch:
+    disable: true
