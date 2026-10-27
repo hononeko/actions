@@ -210,6 +210,61 @@ jobs:
           [ "$MALFORMED" = failure ]
           [ "$OTHER" = failure ]
 
+  # The version action in a repository releasing two images, each from its own directory under its own tag prefix.
+  version-per-path:
+    name: Version per path
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          path: src
+
+      - name: Create the fixture repository
+        run: |
+          git init -q -b main
+          echo src/ >> .git/info/exclude
+          git config user.name test
+          git config user.email test@example.com
+          change() { mkdir -p "images/$1"; echo "$2" >> "images/$1/Dockerfile"; git add images; git commit -q -m "$2"; }
+          change app-a "feat(app-a): first"
+          git tag app-a-1.2.3
+          change app-b "feat(app-b): a feature elsewhere"
+
+      - name: Version with only the other image changed
+        id: unchanged
+        uses: ./src/version
+        with:
+          tag-prefix: app-a-
+          change-path: images/app-a
+
+      - name: Fix the image
+        run: |
+          echo fix >> images/app-a/Dockerfile
+          git add images && git commit -q -m "fix(app-a): a fix"
+
+      - name: Version with the image changed
+        id: changed
+        uses: ./src/version
+        with:
+          tag-prefix: app-a-
+          change-path: images/app-a
+
+      - name: Check the versions
+        env:
+          UNCHANGED: ${{ steps.unchanged.outputs.version-type }}
+          ACTUAL: >-
+            ${{ steps.changed.outputs.version }} ${{ steps.changed.outputs.version-type }}
+            ${{ steps.changed.outputs.version-tag }} ${{ steps.changed.outputs.previous-tag }}
+            ${{ steps.changed.outputs.rc-version }}
+        run: |
+          echo "unchanged: $UNCHANGED; changed: $ACTUAL"
+          [ "$UNCHANGED" = none ]
+          [ "$ACTUAL" = "1.2.4 patch app-a-1.2.4 app-a-1.2.3 1.2.4-rc.1" ]
+
   # The version action against throwaway repositories: each case starts from a v1.2.3 release and adds commits.
   version-rules:
     name: Version rules (${{ matrix.case }})

@@ -106,6 +106,45 @@ check "defaults to short sha when tag is omitted" "$(
 EOF
 )" "" v1.0.0
 
+# A repository releasing several things: only the commits under the given path, and every commit without one.
+git tag v2.0.0
+mkdir -p images/a images/b
+echo a >images/a/Dockerfile
+git add images/a && git commit -q -m "feat(a): add image a (#30)"
+echo b >images/b/Dockerfile
+git add images/b && git commit -q -m "feat(b): add image b (#31)"
+echo a2 >>images/a/Dockerfile
+git add images/a && git commit -q -m "fix(a): pin the base (#32)"
+
+check "only the commits under the change path" "$(
+  cat <<EOF
+## 🚀 Features
+
+* feat(a): add image a #30
+
+## 🐛 Bug fixes
+
+* fix(a): pin the base #32
+
+**Full Changelog**: https://github.com/owner/repo/compare/v2.0.0...a-1.0.0
+EOF
+)" v2.0.0 HEAD a-1.0.0 images/a
+
+check "every commit without a change path" "$(
+  cat <<EOF
+## 🚀 Features
+
+* feat(a): add image a #30
+* feat(b): add image b #31
+
+## 🐛 Bug fixes
+
+* fix(a): pin the base #32
+
+**Full Changelog**: https://github.com/owner/repo/compare/v2.0.0...v2.1.0
+EOF
+)" v2.0.0 HEAD v2.1.0 ""
+
 if "$script" no-such-tag HEAD >/dev/null 2>&1; then
   echo "FAIL: a bad range must fail"
   exit 1
