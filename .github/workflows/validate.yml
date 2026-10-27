@@ -298,12 +298,12 @@ jobs:
           persist-credentials: false
 
       - name: Pull a test image
-        run: docker pull nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+        run: docker pull nginx:1.31-alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
 
       - name: Smoke test an answering image
         uses: ./smoke-test
         with:
-          image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+          image: nginx:1.31-alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
           port: "80"
           status: "200"
           env: |
@@ -314,7 +314,7 @@ jobs:
         continue-on-error: true
         uses: ./smoke-test
         with:
-          image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+          image: nginx:1.31-alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
           port: "80"
           path: /missing
           status: "200"
