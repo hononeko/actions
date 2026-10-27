@@ -9,6 +9,7 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 | [`smoke-test`](smoke-test/action.yml) | Boots a container image, waits for an HTTP answer, and checks its status and memory |
 | [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
 | [`gradle-setup`](gradle-setup/action.yml) | Installs a pinned JDK and sets up the project's Gradle wrapper, validated and with a cache |
+| [`release-candidate`](release-candidate/action.yml) | Finds the commit's release candidate image to promote, waiting for the run that publishes it |
 | [`publish-image`](publish-image/action.yml) | Joins per-architecture images pushed by digest into one multi-arch image under the given tags, and attests it |
 | [`prune-snapshots`](prune-snapshots/action.yml) | Deletes a pull request's snapshot images from GHCR when it closes |
 | [`lint-go`](lint-go/action.yml) | Checks `go.mod` is tidy and runs golangci-lint |
@@ -203,6 +204,37 @@ steps:
 - **Checked first:** the image name, every digest and every tag are validated before anything is pushed.
 - **Outputs:** `digest`, and `reference` (`<image>:<first tag>@<digest>`, ready to deploy). Both also go to the job summary.
 - **Pull request comment:** with `comment-on-pr`, it keeps a single comment on that pull request, updated on every publish, with the latest reference. This needs the `pull-requests: write` permission.
+
+## Release candidate
+
+A release that promotes the release candidate `main` published for a commit finds it with `release-candidate`:
+
+```yaml
+permissions:
+  contents: write
+  packages: write
+  actions: read # to find the run that publishes the candidate
+steps:
+  - uses: docker/login-action@<sha> # v4
+    with:
+      registry: ghcr.io
+      username: ${{ github.actor }}
+      password: ${{ secrets.GITHUB_TOKEN }}
+
+  - id: rc
+    uses: hononeko/actions/release-candidate@v1
+    with:
+      image: ghcr.io/owner/app
+      tag: ${{ needs.version.outputs.commit_tag }} # sha-<commit>
+      version: ${{ needs.version.outputs.version }}
+      # workflow: main.yml # the workflow that publishes it
+
+  - run: docker buildx imagetools create -t "ghcr.io/owner/app:$VERSION" "ghcr.io/owner/app@${{ steps.rc.outputs.digest }}"
+```
+
+- **Waiting:** when the candidate isn't there yet (a release dispatched right after a merge), it waits for that commit's run of `workflow`, up to `timeout-minutes` (60), then uses the candidate it published.
+- **Failing:** when that run fails, never starts, or passes without publishing, it says so, with a link to the run.
+- **Output:** `digest`, also in the job summary under `version`'s heading.
 
 ## Branch snapshots
 
@@ -438,8 +470,9 @@ tests/smoke-test.test.sh
 tests/coverage.test.sh
 tests/lint-annotations.test.sh
 tests/lint-kotlin.test.sh
+tests/release-candidate.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
-  gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
+  gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 uvx zizmor@1.31.1 --config lint-actions/zizmor.yml .
 ```
