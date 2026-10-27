@@ -1,0 +1,62 @@
+name: Release candidate
+description: >-
+  Finds the release candidate of the commit being released, an image tagged by commit (e.g. sha-1a2b3c4), and outputs
+  its digest to promote. When it doesn't exist yet, waits for the workflow run that publishes it for that commit, so a
+  release dispatched right after a merge waits instead of failing; fails when that run fails or doesn't finish in time.
+  Log in to the registry first; the job needs the `actions: read` permission.
+
+inputs:
+  image:
+    description: Image, e.g. ghcr.io/owner/app
+    required: true
+  tag:
+    description: The release candidate's tag, e.g. sha-1a2b3c4 (the version action's commit-tag)
+    required: true
+  workflow:
+    description: Workflow file that publishes the release candidate for a push to the default branch
+    required: false
+    default: main.yml
+  sha:
+    description: The commit being released
+    required: false
+    default: ${{ github.sha }}
+  timeout-minutes:
+    description: Minutes to wait for that workflow's run to finish
+    required: false
+    default: "60"
+  version:
+    description: Version being released, for the job summary's heading; empty for none
+    required: false
+    default: ""
+  token:
+    description: Token that may read the repository's workflow runs
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  digest:
+    description: The release candidate's digest, e.g. sha256:...
+    value: ${{ steps.find.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Find the release candidate
+      id: find
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        TAG: ${{ inputs.tag }}
+        VERSION: ${{ inputs.version }}
+        RC_WORKFLOW: ${{ inputs.workflow }}
+        RC_SHA: ${{ inputs.sha }}
+        RC_TIMEOUT: ${{ inputs.timeout-minutes }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        digest=$("$GITHUB_ACTION_PATH/find-release-candidate.sh" "$IMAGE" "$TAG")
+        docker buildx imagetools inspect "$IMAGE:$TAG"
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+        {
+          if [ -n "$VERSION" ]; then echo "### Release $VERSION"; fi
+          echo "Release candidate \`$IMAGE:$TAG\`, digest \`$digest\`"
+        } >> "$GITHUB_STEP_SUMMARY"
