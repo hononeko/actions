@@ -11,10 +11,11 @@
 # " (#N)" a squash merge ends its subject with. Otherwise (a rebase merge) it's looked up on GitHub when GH_TOKEN is
 # set, and a commit that didn't come from a PR links itself.
 #
-# Usage: release-notes.sh <previous-tag> [ref] [tag]
+# Usage: release-notes.sh <previous-tag> [ref] [tag] [change-path]
 #   previous-tag  the last release's tag; empty for the first release (every commit up to ref)
 #   ref           the commit being released (default HEAD)
 #   tag           the release's own tag, for the Full Changelog link (default: ref's short commit)
+#   change-path   only commits that change something under this path; empty for every commit
 #   GITHUB_REPOSITORY  owner/repo for the PR lookup and links (default: from the origin remote)
 #   GH_TOKEN           enables the PR lookup for subjects without "(#N)"
 set -euo pipefail
@@ -31,6 +32,8 @@ repo=${GITHUB_REPOSITORY:-$(git remote get-url origin | sed -E 's#^(https://gith
 
 range=$ref
 if [ -n "$prev_tag" ]; then range="$prev_tag..$ref"; fi
+paths=()
+if [ -n "${4-}" ]; then paths=(-- "$4"); fi
 
 # The merged PR that brought in a commit, or nothing.
 pr_of() {
@@ -41,7 +44,7 @@ pr_of() {
 breaking=() features=() fixes=() ci=() others=()
 
 # Listed first, so a bad range fails the script instead of giving empty notes.
-commits=$(git rev-list --reverse "$range")
+commits=$(git rev-list --reverse "$range" "${paths[@]}")
 for sha in $commits; do
   subject=$(git log -1 --format=%s "$sha")
   body=$(git log -1 --format=%b "$sha")

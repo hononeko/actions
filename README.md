@@ -20,6 +20,22 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 
 `version` and `release-notes` need a full-history checkout (`fetch-depth: 0`).
 
+A repository that releases several things from one tree, such as one image per directory, gives each its own `tag-prefix` and passes `change-path` to both, so only the commits under that path count toward its version and appear in its notes:
+
+```yaml
+- id: version
+  uses: hononeko/actions/version@v1
+  with:
+    tag-prefix: my-image- # my-image-1.2.3
+    change-path: images/my-image
+
+- uses: hononeko/actions/release-notes@v1
+  with:
+    previous-tag: ${{ steps.version.outputs.previous-tag }}
+    tag: ${{ steps.version.outputs.version-tag }}
+    change-path: images/my-image
+```
+
 ## Usage
 
 ```yaml

@@ -17,6 +17,12 @@ inputs:
     description: "The release's own tag, for the Full Changelog link (default: the commit)"
     required: false
     default: ""
+  change-path:
+    description: >-
+      Only commits that change something under this path, e.g. images/app in a repository that releases several things;
+      empty for every commit
+    required: false
+    default: ""
   path:
     description: File to write the notes to
     required: false
@@ -47,10 +53,11 @@ runs:
         PREVIOUS_TAG: ${{ inputs.previous-tag }}
         REF: ${{ inputs.ref }}
         TAG: ${{ inputs.tag }}
+        CHANGE_PATH: ${{ inputs.change-path }}
         NOTES_PATH: ${{ inputs.path }}
         SUMMARY: ${{ inputs.summary }}
       run: |
-        "$GITHUB_ACTION_PATH/release-notes.sh" "$PREVIOUS_TAG" "$REF" "$TAG" > "$NOTES_PATH"
+        "$GITHUB_ACTION_PATH/release-notes.sh" "$PREVIOUS_TAG" "$REF" "$TAG" "$CHANGE_PATH" > "$NOTES_PATH"
         cat "$NOTES_PATH"
         if [ -n "$SUMMARY" ]; then
           {
