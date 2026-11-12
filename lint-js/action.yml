@@ -13,7 +13,7 @@ inputs:
     description: Exact oxlint version, e.g. 1.90.0
     required: false
     # renovate: datasource=npm depName=oxlint
-    default: 1.92.0
+    default: 1.93.0
   deny-warnings:
     description: '"false" to fail only on errors'
     required: false
