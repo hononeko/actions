@@ -10,6 +10,7 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 | [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
 | [`gradle-setup`](gradle-setup/action.yml) | Installs a pinned JDK and sets up the project's Gradle wrapper, validated and with a cache |
 | [`release-candidate`](release-candidate/action.yml) | Finds the commit's release candidate image to promote, waiting for the run that publishes it |
+| [`build-image`](build-image/action.yml) | Builds a container image with Buildx and `org.opencontainers.image.source` set, loading locally or pushing by digest |
 | [`publish-image`](publish-image/action.yml) | Joins per-architecture images pushed by digest into one multi-arch image under the given tags, and attests it |
 | [`prune-snapshots`](prune-snapshots/action.yml) | Deletes a pull request's snapshot images from GHCR when it closes |
 | [`lint-go`](lint-go/action.yml) | Checks `go.mod` is tidy and runs golangci-lint |

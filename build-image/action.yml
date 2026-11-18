@@ -1,0 +1,90 @@
+name: Build image
+description: >-
+  Builds a container image with Docker Buildx, defaulting org.opencontainers.image.source to the repository URL.
+  When `push` is true, pushes the image by digest with provenance and an SBOM; otherwise loads it into Docker for
+  smoke testing. Set up Buildx (and log in to the registry when `push` is true) first.
+
+inputs:
+  image:
+    description: Image to push by digest when `push` is true, e.g. ghcr.io/owner/name
+    required: false
+    default: ""
+  context:
+    description: Build context path
+    required: false
+    default: .
+  file:
+    description: Path to the Dockerfile, relative to the workspace; empty for Buildx's default
+    required: false
+    default: ""
+  platforms:
+    description: Target platform(s), e.g. linux/amd64
+    required: false
+    default: ""
+  push:
+    description: >-
+      "true" to push by digest with provenance and SBOM; "false" to load into the local Docker daemon under `tags`
+    required: false
+    default: "false"
+  tags:
+    description: Tags to apply when loading into the local Docker daemon (`push` is false)
+    required: false
+    default: ""
+  build-args:
+    description: Build-time variables, one KEY=VALUE per line
+    required: false
+    default: ""
+  labels:
+    description: Extra image labels, one KEY=VALUE per line (appended after org.opencontainers.image.source)
+    required: false
+    default: ""
+  cache-from:
+    description: External cache sources
+    required: false
+    default: ""
+  cache-to:
+    description: Cache export destinations
+    required: false
+    default: ""
+  provenance:
+    description: Provenance attestation mode when `push` is true
+    required: false
+    default: mode=max
+  sbom:
+    description: Attach SBOM attestation when `push` is true
+    required: false
+    default: "true"
+
+outputs:
+  digest:
+    description: Digest of the built image, e.g. sha256:...
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      if: inputs.push == 'true' && inputs.image == ''
+      shell: bash
+      run: |
+        echo "::error title=build-image::'image' is required when 'push' is true" >&2
+        exit 1
+
+    - name: Build image
+      id: build
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        platforms: ${{ inputs.platforms }}
+        outputs: ${{ inputs.push == 'true' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', inputs.image) || '' }}
+        load: ${{ inputs.push != 'true' }}
+        tags: ${{ inputs.push != 'true' && inputs.tags || '' }}
+        build-args: ${{ inputs.build-args }}
+        labels: |
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          ${{ inputs.labels }}
+        cache-from: ${{ inputs.cache-from }}
+        cache-to: ${{ inputs.cache-to }}
+        provenance: ${{ inputs.push == 'true' && inputs.provenance || 'false' }}
+        sbom: ${{ inputs.push == 'true' && inputs.sbom || 'false' }}
