@@ -10,6 +10,7 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 | [`bun-setup`](bun-setup/action.yml) | Installs a pinned Bun version and the dependencies locked in `bun.lock`, with a cache |
 | [`gradle-setup`](gradle-setup/action.yml) | Installs a pinned JDK and sets up the project's Gradle wrapper, validated and with a cache |
 | [`release-candidate`](release-candidate/action.yml) | Finds the commit's release candidate image to promote, waiting for the run that publishes it |
+| [`build-image`](build-image/action.yml) | Builds a container image with Buildx and `org.opencontainers.image.source` set, loading locally or pushing by digest |
 | [`publish-image`](publish-image/action.yml) | Joins per-architecture images pushed by digest into one multi-arch image under the given tags, and attests it |
 | [`prune-snapshots`](prune-snapshots/action.yml) | Deletes a pull request's snapshot images from GHCR when it closes |
 | [`lint-go`](lint-go/action.yml) | Checks `go.mod` is tidy and runs golangci-lint |
@@ -175,9 +176,47 @@ Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when th
 
 Outputs: `java-version` (the requested version), `java-distribution`, `java-installed-version` (what was installed, e.g. `25.0.1+8.0.LTS` for a requested `25`), `java-home` (the installed JDK, also exported as `JAVA_HOME`) and `gradle-version` (the wrapper's version).
 
+## Build image
+
+Builds a container image with Docker Buildx, defaulting `org.opencontainers.image.source` to the repository URL (`${{ github.server_url }}/${{ github.repository }}`) so Renovate and GHCR can resolve the source repo even when the base image sets its own `LABEL` (such as `oven/bun`):
+
+```yaml
+steps:
+  - uses: docker/setup-buildx-action@<sha> # v4
+
+  - name: Build image for the smoke test
+    uses: hononeko/actions/build-image@v1
+    with:
+      tags: smoke:${{ matrix.arch }}
+      platforms: linux/${{ matrix.arch }}
+
+  - uses: docker/login-action@<sha> # v4
+    if: inputs.push
+    with:
+      registry: ghcr.io
+      username: ${{ github.actor }}
+      password: ${{ secrets.GITHUB_TOKEN }}
+
+  - name: Push image by digest
+    id: push
+    if: inputs.push
+    uses: hononeko/actions/build-image@v1
+    with:
+      image: ghcr.io/owner/app # lowercase
+      platforms: linux/${{ matrix.arch }}
+      push: "true"
+      digest-artifact: digests-${{ matrix.arch }}
+```
+
+- **Local vs. push:** with `push: "false"` (the default), it loads the image into the local Docker daemon under `tags` with provenance and SBOM disabled. With `push: "true"`, it validates `image` and pushes by canonical digest (`push-by-digest=true`) with `provenance: mode=max` and `sbom: "true"` by default.
+- **Labels:** `org.opencontainers.image.source` is always set first; extra `labels` (`KEY=VALUE`, one per line) are appended after it.
+- **Digest export:** setting `digest-artifact` when `push: "true"` exports the digest file and uploads it as a 1-day artifact ready for [`publish-image`](#publish-image).
+
+Output: `digest` (`sha256:...`).
+
 ## Publish image
 
-Each architecture's image is built and pushed by digest in its own job (`docker/build-push-action` with `push-by-digest=true`), and its digest is uploaded as an empty file in a `digests-<arch>` artifact. `publish-image` then joins them:
+Each architecture's image is built and pushed by digest in its own job ([`build-image`](#build-image) or `docker/build-push-action` with `push-by-digest=true`), and its digest is uploaded as an empty file in a `digests-<arch>` artifact. `publish-image` then joins them:
 
 ```yaml
 permissions:
