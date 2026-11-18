@@ -10,6 +10,7 @@ Before committing, all of these must pass:
 tests/release-notes.test.sh
 tests/bun-setup.test.sh
 tests/gradle-setup.test.sh
+tests/build-image.test.sh
 tests/publish-image.test.sh
 tests/snapshot-pattern.test.sh
 tests/smoke-test.test.sh
@@ -18,7 +19,7 @@ tests/lint-annotations.test.sh
 tests/lint-kotlin.test.sh
 tests/release-candidate.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
-  gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
+  gradle-setup/*.sh build-image/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 uvx zizmor@1.31.1 --config lint-actions/zizmor.yml .
 ```

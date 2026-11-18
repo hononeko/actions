@@ -18,7 +18,7 @@ jobs:
       - name: ShellCheck
         run: >-
           shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh
-          gradle-setup/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
+          gradle-setup/*.sh build-image/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
 
       # actionlint only reads an action's metadata where a workflow here uses it, so every action.yml is checked too:
       # a YAML error in one only shows up when a consumer loads it.
@@ -41,6 +41,9 @@ jobs:
 
       - name: JDK and Gradle version resolution tests
         run: tests/gradle-setup.test.sh
+
+      - name: Build image tests
+        run: tests/build-image.test.sh
 
       - name: Publish image tests
         run: tests/publish-image.test.sh
@@ -692,3 +695,75 @@ jobs:
           runtime=$(./gradlew -q printJavaVersion)
           echo "build JVM: $runtime"
           [[ $runtime == "$expected"* ]]
+
+  build-image:
+    name: Build image action
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Create a fixture Dockerfile with a base source label
+        run: |
+          mkdir -p build-image-fixture
+          cat >build-image-fixture/Dockerfile <<'EOF'
+          FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+          LABEL org.opencontainers.image.source="https://github.com/example/wrong"
+          ENTRYPOINT ["/bin/true"]
+          EOF
+
+      - name: Build local image
+        uses: ./build-image
+        with:
+          context: build-image-fixture
+          tags: build-image-test:local
+          labels: org.example.extra=hello
+
+      - name: Check image labels
+        env:
+          EXPECTED_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          source_label=$(docker image inspect build-image-test:local --format '{{index .Config.Labels "org.opencontainers.image.source"}}')
+          extra_label=$(docker image inspect build-image-test:local --format '{{index .Config.Labels "org.example.extra"}}')
+          echo "source=$source_label extra=$extra_label"
+          [ "$source_label" = "$EXPECTED_SOURCE" ]
+          [ "$extra_label" = "hello" ]
+
+      - name: Fail when push is true without image
+        id: missing_image
+        continue-on-error: true
+        uses: ./build-image
+        with:
+          push: "true"
+
+      - name: Fail when image has a tag
+        id: tagged_image
+        continue-on-error: true
+        uses: ./build-image
+        with:
+          push: "true"
+          image: ghcr.io/hononeko/app:latest
+
+      - name: Fail when push is invalid
+        id: bad_push
+        continue-on-error: true
+        uses: ./build-image
+        with:
+          push: "True"
+
+      - name: Check invalid inputs failed
+        env:
+          MISSING_OUTCOME: ${{ steps.missing_image.outcome }}
+          TAGGED_OUTCOME: ${{ steps.tagged_image.outcome }}
+          BAD_PUSH_OUTCOME: ${{ steps.bad_push.outcome }}
+        run: |
+          [ "$MISSING_OUTCOME" = "failure" ]
+          [ "$TAGGED_OUTCOME" = "failure" ]
+          [ "$BAD_PUSH_OUTCOME" = "failure" ]

@@ -54,6 +54,12 @@ inputs:
     description: Attach SBOM attestation when `push` is true
     required: false
     default: "true"
+  digest-artifact:
+    description: >-
+      Artifact name to upload the exported digest file under when `push` is true (e.g. digests-amd64) for
+      publish-image; empty to skip uploading
+    required: false
+    default: ""
 
 outputs:
   digest:
@@ -64,11 +70,13 @@ runs:
   using: composite
   steps:
     - name: Validate inputs
-      if: inputs.push == 'true' && inputs.image == ''
       shell: bash
-      run: |
-        echo "::error title=build-image::'image' is required when 'push' is true" >&2
-        exit 1
+      env:
+        BUILD_PUSH: ${{ inputs.push }}
+        BUILD_IMAGE: ${{ inputs.image }}
+        BUILD_SBOM: ${{ inputs.sbom }}
+        BUILD_DIGEST_ARTIFACT: ${{ inputs.digest-artifact }}
+      run: '"$GITHUB_ACTION_PATH/validate-inputs.sh"'
 
     - name: Build image
       id: build
@@ -88,3 +96,34 @@ runs:
         cache-to: ${{ inputs.cache-to }}
         provenance: ${{ inputs.push == 'true' && inputs.provenance || 'false' }}
         sbom: ${{ inputs.push == 'true' && inputs.sbom || 'false' }}
+
+    - name: Export digest
+      if: inputs.push == 'true' && inputs.digest-artifact != ''
+      shell: bash
+      env:
+        DIGEST: ${{ steps.build.outputs.digest }}
+        DIGESTS: ${{ runner.temp }}/build-image-digests
+      run: |
+        [[ $DIGEST =~ ^sha256:[0-9a-f]{64}$ ]] || {
+          echo "::error title=build-image::Expected sha256 digest from build, got '$DIGEST'" >&2
+          exit 1
+        }
+        rm -rf "$DIGESTS"
+        mkdir -p "$DIGESTS"
+        touch "$DIGESTS/${DIGEST#sha256:}"
+
+    - name: Upload digest
+      if: inputs.push == 'true' && inputs.digest-artifact != ''
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      with:
+        name: ${{ inputs.digest-artifact }}
+        path: ${{ runner.temp }}/build-image-digests/*
+        if-no-files-found: error
+        retention-days: 1
+
+    - name: Remove digests directory
+      if: always() && inputs.push == 'true' && inputs.digest-artifact != ''
+      shell: bash
+      env:
+        DIGESTS: ${{ runner.temp }}/build-image-digests
+      run: rm -rf "$DIGESTS"
