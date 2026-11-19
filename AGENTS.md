@@ -17,6 +17,7 @@ tests/smoke-test.test.sh
 tests/coverage.test.sh
 tests/lint-annotations.test.sh
 tests/lint-kotlin.test.sh
+tests/lint-k8s.test.sh
 tests/release-candidate.test.sh
 shellcheck release-notes/release-notes.sh smoke-test/smoke-test.sh bun-setup/resolve-version.sh \
   gradle-setup/*.sh build-image/*.sh publish-image/*.sh prune-snapshots/*.sh release-candidate/*.sh coverage/*.sh lint-*/*.sh tests/*.sh
