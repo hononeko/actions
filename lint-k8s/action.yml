@@ -1,0 +1,49 @@
+name: Lint Kubernetes
+description: >-
+  Renders Kustomize directories, validates the manifests strictly with kubeconform, and lints them with kube-linter
+  (using .kube-linter.yaml when there is one). Findings are annotated on the pull request and fail the job.
+
+inputs:
+  paths:
+    description: >-
+      Kustomize directories relative to the repository, separated by spaces or newlines; empty for every tracked
+      kustomization.yaml and kustomization.yml (skipping kind: Component)
+    required: false
+    default: ""
+  ignore-missing-schemas:
+    description: Pass -ignore-missing-schemas to kubeconform so custom resources without schemas are skipped
+    required: false
+    default: "true"
+  skip-kinds:
+    description: Comma-separated Kubernetes resource kinds to skip in kubeconform (e.g. Secret,SealedSecret)
+    required: false
+    default: ""
+  enable-helm:
+    description: Pass --enable-helm to kustomize build
+    required: false
+    default: "false"
+  kube-linter:
+    description: Run kube-linter on rendered manifests
+    required: false
+    default: "true"
+  kube-linter-config:
+    description: kube-linter config relative to the repository; empty for .kube-linter.yaml or .kube-linter.yml when present
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: lint-k8s
+      shell: bash
+      env:
+        K8S_PATHS: ${{ inputs.paths }}
+        K8S_IGNORE_MISSING_SCHEMAS: ${{ inputs.ignore-missing-schemas }}
+        K8S_SKIP_KINDS: ${{ inputs.skip-kinds }}
+        K8S_ENABLE_HELM: ${{ inputs.enable-helm }}
+        K8S_KUBELINTER: ${{ inputs.kube-linter }}
+        K8S_KUBELINTER_CONFIG: ${{ inputs.kube-linter-config }}
+        KUSTOMIZE_IMAGE: registry.k8s.io/kustomize/kustomize:v5.8.3@sha256:429eda4a1c76a7de458d0c4ca3ded9b5d764899ff6bdaeccc1d98b1b6ee873e4
+        KUBECONFORM_IMAGE: ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e
+        KUBELINTER_IMAGE: stackrox/kube-linter:v0.8.3@sha256:f2bfce7879206d32f69ab6572c376f916643f54ca291ac38cf7d01ef591ff3f9
+      run: '"$GITHUB_ACTION_PATH/lint-k8s.sh"'

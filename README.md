@@ -17,6 +17,7 @@ Shared GitHub Actions for versioning, releasing and publishing my repositories f
 | [`lint-kotlin`](lint-kotlin/action.yml) | Runs the detekt CLI, optionally with its ktlint rules, without a Gradle plugin |
 | [`lint-js`](lint-js/action.yml) | Runs oxlint on JavaScript and TypeScript |
 | [`lint-docker`](lint-docker/action.yml) | Runs hadolint on the repository's Dockerfiles |
+| [`lint-k8s`](lint-k8s/action.yml) | Renders Kustomize manifests and runs kubeconform and kube-linter |
 | [`lint-actions`](lint-actions/action.yml) | Runs actionlint and zizmor on the repository's workflows and actions |
 | [`coverage`](coverage/action.yml) | Reports Go, JaCoCo/Kover or lcov coverage, overall and on a pull request's changed lines, with minimums |
 
@@ -455,6 +456,7 @@ lint:
         persist-credentials: false
     - uses: hononeko/actions/lint-actions@v1
     - uses: hononeko/actions/lint-docker@v1
+    - uses: hononeko/actions/lint-k8s@v1
     - uses: hononeko/actions/lint-go@v1
     - uses: hononeko/actions/lint-kotlin@v1
     - uses: hononeko/actions/lint-js@v1
@@ -468,6 +470,7 @@ Use the ones for the project's languages. Every linter annotates its findings on
 | `lint-kotlin` | [detekt](https://detekt.dev) CLI | `config/detekt/detekt.yml` (on top of detekt's defaults), `config/detekt/baseline.xml` | `working-directory`, `detekt-version`, `config`, `baseline`, `ktlint`, `args` |
 | `lint-js` | [oxlint](https://oxc.rs/docs/guide/usage/linter) | `.oxlintrc.json` | `working-directory`, `oxlint-version`, `deny-warnings`, `args` |
 | `lint-docker` | [hadolint](https://github.com/hadolint/hadolint) | `.hadolint.yaml` | `dockerfiles`, `failure-threshold`, `config` |
+| `lint-k8s` | [kustomize](https://kustomize.io), [kubeconform](https://github.com/yannh/kubeconform), [kube-linter](https://docs.kubelinter.io) | `.kube-linter.yaml` | `paths`, `ignore-missing-schemas`, `skip-kinds`, `enable-helm`, `kube-linter`, `kube-linter-config` |
 | `lint-actions` | [actionlint](https://github.com/rhysd/actionlint), [zizmor](https://docs.zizmor.sh) | `.github/actionlint.yaml`, `zizmor.yml` | `zizmor-version`, `persona`, `min-severity`, `online-audits`, `actionlint` |
 
 - **Existing findings:** to adopt a linter on a project with findings, accept them once and gate only new ones: a detekt baseline (`detekt --create-baseline`), `only-new-issues: "true"` for golangci-lint, or the tools' ignore comments and config.

@@ -63,6 +63,9 @@ jobs:
       - name: detekt checksum tests
         run: tests/lint-kotlin.test.sh
 
+      - name: Lint k8s tests
+        run: tests/lint-k8s.test.sh
+
       - name: Release candidate tests
         run: tests/release-candidate.test.sh
 
@@ -419,6 +422,11 @@ jobs:
         with:
           dockerfiles: tests/fixtures/docker/Dockerfile
 
+      - name: Lint Kubernetes
+        uses: ./lint-k8s
+        with:
+          paths: tests/fixtures/k8s
+
       - name: Add an issue to each project
         run: |
           printf 'package fixture\n\nimport "os"\n\n// Clean removes a file.\nfunc Clean() {\n\tos.Remove("x")\n}\n' \
@@ -426,6 +434,9 @@ jobs:
           printf 'package fixture\n\nfun empty() {}\n' > tests/fixtures/kotlin-project/src/main/kotlin/fixture/Issue.kt
           printf 'export function stop(): void {\n  debugger;\n}\n' > tests/fixtures/js-project/src/issue.ts
           printf 'FROM alpine:latest\n' > tests/fixtures/docker/Dockerfile.issue
+          printf 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: issue\nspec:\n  selector:\n    matchLabels: {app: issue}\n  template:\n    metadata:\n      labels: {app: issue}\n    spec:\n      containers:\n        - name: app\n          image: nginx:latest\n' \
+            > tests/fixtures/k8s/issue.yaml
+          printf '  - issue.yaml\n' >> tests/fixtures/k8s/kustomization.yaml
 
       - name: Lint Go with an unchecked error
         id: go
@@ -455,12 +466,19 @@ jobs:
         with:
           dockerfiles: tests/fixtures/docker/Dockerfile tests/fixtures/docker/Dockerfile.issue
 
+      - name: Lint Kubernetes with an unhardened deployment
+        id: k8s
+        continue-on-error: true
+        uses: ./lint-k8s
+        with:
+          paths: tests/fixtures/k8s
+
       - name: Check each failed
         env:
-          OUTCOMES: ${{ steps.go.outcome }} ${{ steps.kotlin.outcome }} ${{ steps.js.outcome }} ${{ steps.docker.outcome }}
+          OUTCOMES: ${{ steps.go.outcome }} ${{ steps.kotlin.outcome }} ${{ steps.js.outcome }} ${{ steps.docker.outcome }} ${{ steps.k8s.outcome }}
         run: |
           echo "$OUTCOMES"
-          [ "$OUTCOMES" = "failure failure failure failure" ]
+          [ "$OUTCOMES" = "failure failure failure failure failure" ]
 
   # Runs coverage on the Go fixture's tests. On a pull request it also counts the changed lines, from the shallow merge
   # commit actions/checkout makes.
