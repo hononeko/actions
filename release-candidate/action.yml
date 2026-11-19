@@ -3,7 +3,7 @@ description: >-
   Finds the release candidate of the commit being released, an image tagged by commit (e.g. sha-1a2b3c4), and outputs
   its digest to promote. When it doesn't exist yet, waits for the workflow run that publishes it for that commit, so a
   release dispatched right after a merge waits instead of failing; fails when that run fails or doesn't finish in time.
-  Log in to the registry first; the job needs the `actions: read` permission.
+  Log in to the registry first (no Buildx builder needed); the job needs the `actions: read` permission.
 
 inputs:
   image:
