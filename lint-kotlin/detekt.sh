@@ -43,7 +43,7 @@ fetch() {
 root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 report=$(mktemp)
 trap 'rm -f "$report"' EXIT
-args=(--input . --excludes "**/build/**,**/.gradle/**" --base-path "$root" --build-upon-default-config
+args=(--input . --parallel --excludes "**/build/**,**/.gradle/**" --base-path "$root" --build-upon-default-config
   --report "sarif:$report")
 config=${DETEKT_CONFIG-}
 [ -n "$config" ] || [ ! -f config/detekt/detekt.yml ] || config=config/detekt/detekt.yml

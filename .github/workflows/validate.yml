@@ -679,6 +679,22 @@ jobs:
         run: |
           [ "$OUTCOME" = "failure" ]
 
+      - name: Reject invalid cache-read-only input
+        id: bad_cache_ro
+        if: matrix.java-version == ''
+        continue-on-error: true
+        uses: ./gradle-setup
+        with:
+          working-directory: tests/fixtures/gradle-project
+          cache-read-only: "yes"
+
+      - name: Check invalid cache-read-only failed
+        if: matrix.java-version == ''
+        env:
+          OUTCOME: ${{ steps.bad_cache_ro.outcome }}
+        run: |
+          [ "$OUTCOME" = "failure" ]
+
       - name: Set up the JDK and Gradle
         id: setup
         uses: ./gradle-setup
@@ -686,6 +702,7 @@ jobs:
           java-version: ${{ matrix.java-version }}
           java-distribution: ${{ matrix.java-distribution }}
           working-directory: tests/fixtures/gradle-project
+          cache-read-only: ${{ matrix.java-version != '' && 'true' || '' }}
 
       - name: Check the setup
         working-directory: tests/fixtures/gradle-project

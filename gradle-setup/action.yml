@@ -29,6 +29,13 @@ inputs:
       to another step.
     required: false
     default: basic
+  cache-read-only:
+    description: >-
+      "true" to only read the Gradle User Home cache without writing it (recommended on secondary parallel Gradle jobs
+      so they don't race to save the same cache key on the default branch), "false" to allow writes, or empty for
+      setup-gradle's default (read-only off the default branch).
+    required: false
+    default: ""
 
 outputs:
   java-version:
@@ -57,6 +64,9 @@ runs:
         JAVA_VERSION_INPUT: ${{ inputs.java-version }}
         JAVA_DISTRIBUTION_INPUT: ${{ inputs.java-distribution }}
         PROJECT_DIR: ${{ inputs.working-directory }}
+        CACHE_READ_ONLY_INPUT: ${{ inputs.cache-read-only }}
+        REF_NAME: ${{ github.ref_name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
         err=$(mktemp)
         trap 'rm -f "$err"' EXIT
@@ -73,9 +83,16 @@ runs:
         # A wrapper without a distribution checksum still builds, so it only warns
         if [ -s "$err" ]; then echo "::warning title=gradle-setup::$(cat "$err")"; fi
         rm -f "$err"
+        if ! cache_read_only=$("$GITHUB_ACTION_PATH/resolve-cache-read-only.sh" 2>"$err"); then
+          echo "::error title=gradle-setup::$(cat "$err")"
+          rm -f "$err"
+          exit 1
+        fi
+        rm -f "$err"
         {
           echo "$java"
           echo "gradle-version=$gradle_version"
+          echo "cache-read-only=$cache_read_only"
         } >> "$GITHUB_OUTPUT"
 
     - name: Install the JDK
@@ -92,3 +109,4 @@ runs:
       uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
       with:
         cache-provider: ${{ inputs.cache-provider }}
+        cache-read-only: ${{ steps.resolve.outputs.cache-read-only }}

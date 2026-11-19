@@ -165,6 +165,7 @@ Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when th
   #   java-distribution: zulu    # default: a prefix on the version, then temurin
   #   working-directory: app     # default: .
   #   cache-provider: enhanced   # default: basic
+  #   cache-read-only: "true"    # default: read-only off the default branch; set on parallel Gradle jobs
 
 - run: ./gradlew check
 ```
@@ -173,7 +174,7 @@ Outputs: `bun-version` (the installed version) and `cache-hit` (`"true"` when th
 - **Distribution:** `temurin` unless the `java-distribution` input or a prefix on the version names another, the way mise and asdf write `.java-version` (`zulu-25`, `temurin-25.0.1`). It must be one `actions/setup-java` downloads itself; `jdkfile` isn't supported.
 - **Pinned Gradle:** the build runs the version the project's wrapper pins in `gradle/wrapper/gradle-wrapper.properties`, and a project without a wrapper fails. A wrapper without `distributionSha256Sum` gets a warning, since the distribution it downloads isn't verified.
 - **Validated:** every Gradle wrapper jar in the repository is checked against Gradle's published checksums.
-- **Cache:** Gradle User Home, by [`setup-gradle`](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md). Pull requests only read it; the default branch writes it. The cache provider defaults to `basic`, which is open source (MIT) and free for every repository. `enhanced` is Gradle's proprietary library under its own terms.
+- **Cache:** Gradle User Home, by [`setup-gradle`](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md). Pull requests only read it; the default branch writes it. Set `cache-read-only: "true"` on secondary parallel Gradle jobs so they don't race to save the same cache key on the default branch. The cache provider defaults to `basic`, which is open source (MIT) and free for every repository. `enhanced` is Gradle's proprietary library under its own terms.
 
 Outputs: `java-version` (the requested version), `java-distribution`, `java-installed-version` (what was installed, e.g. `25.0.1+8.0.LTS` for a requested `25`), `java-home` (the installed JDK, also exported as `JAVA_HOME`) and `gradle-version` (the wrapper's version).
 
