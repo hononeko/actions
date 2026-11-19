@@ -2,7 +2,7 @@ name: Publish image
 description: >-
   Joins per-architecture images, each pushed by digest and uploaded as a digests-* artifact, into one multi-arch image
   under the given tags, attests its build provenance, and reports it in the job summary and, optionally, in a comment
-  on a pull request. Log in to the registry first.
+  on a pull request. Log in to the registry first; it needs no Buildx builder (docker/setup-buildx-action).
 
 inputs:
   image:

@@ -2,7 +2,8 @@ name: Build image
 description: >-
   Builds a container image with Docker Buildx, defaulting org.opencontainers.image.source to the repository URL.
   When `push` is true, pushes the image by digest with provenance and an SBOM; otherwise loads it into Docker for
-  smoke testing. Set up Buildx (and log in to the registry when `push` is true) first.
+  smoke testing. With `cache-scope`, reads that GitHub Actions cache and exports to it except on pull requests. Set
+  up Buildx (and log in to the registry when `push` is true) first.
 
 inputs:
   image:
@@ -38,12 +39,24 @@ inputs:
     description: Extra image labels, one KEY=VALUE per line (appended after org.opencontainers.image.source)
     required: false
     default: ""
+  cache-scope:
+    description: >-
+      GitHub Actions cache scope to read layers from and export them to (mode=max), e.g. app-amd64; empty for none.
+      Use one scope per image and architecture
+    required: false
+    default: ""
+  cache-write:
+    description: >-
+      Whether to export to `cache-scope`: "auto" exports except on pull_request, pull_request_target and merge_group
+      events, whose caches the default branch can't read; "true" or "false" to choose
+    required: false
+    default: auto
   cache-from:
-    description: External cache sources
+    description: Extra cache sources, one per line, read before `cache-scope`
     required: false
     default: ""
   cache-to:
-    description: Cache export destinations
+    description: Extra cache export destinations, one per line, exported regardless of `cache-write`
     required: false
     default: ""
   provenance:
@@ -78,6 +91,17 @@ runs:
         BUILD_DIGEST_ARTIFACT: ${{ inputs.digest-artifact }}
       run: '"$GITHUB_ACTION_PATH/validate-inputs.sh"'
 
+    - name: Resolve cache
+      id: cache
+      shell: bash
+      env:
+        CACHE_SCOPE: ${{ inputs.cache-scope }}
+        CACHE_WRITE: ${{ inputs.cache-write }}
+        CACHE_FROM: ${{ inputs.cache-from }}
+        CACHE_TO: ${{ inputs.cache-to }}
+        EVENT_NAME: ${{ github.event_name }}
+      run: '"$GITHUB_ACTION_PATH/resolve-cache.sh"'
+
     - name: Build image
       id: build
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -92,8 +116,8 @@ runs:
         labels: |
           org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           ${{ inputs.labels }}
-        cache-from: ${{ inputs.cache-from }}
-        cache-to: ${{ inputs.cache-to }}
+        cache-from: ${{ steps.cache.outputs.cache-from }}
+        cache-to: ${{ steps.cache.outputs.cache-to }}
         provenance: ${{ inputs.push == 'true' && inputs.provenance || 'false' }}
         sbom: ${{ inputs.push == 'true' && inputs.sbom || 'false' }}
 

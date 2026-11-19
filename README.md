@@ -191,6 +191,7 @@ steps:
     with:
       tags: smoke:${{ matrix.arch }}
       platforms: linux/${{ matrix.arch }}
+      cache-scope: app-${{ matrix.arch }}
 
   - uses: docker/login-action@<sha> # v4
     if: inputs.push
@@ -208,9 +209,12 @@ steps:
       platforms: linux/${{ matrix.arch }}
       push: "true"
       digest-artifact: digests-${{ matrix.arch }}
+      cache-scope: app-${{ matrix.arch }}
 ```
 
 - **Local vs. push:** with `push: "false"` (the default), it loads the image into the local Docker daemon under `tags` with provenance and SBOM disabled. With `push: "true"`, it validates `image` and pushes by canonical digest (`push-by-digest=true`) with `provenance: mode=max` and `sbom: "true"` by default.
+- **Smoke testing a pushed image:** a pushed image isn't loaded into the runner's Docker daemon, because Buildx can't load and push by digest in one export, so [`smoke-test`](#smoke-test) pulls the pushed digest back from the registry first (about 10s for a JVM image). That tests the exact image that's published. To skip the pull, smoke-test a local build as above, and the push build then reuses its layers.
+- **Layer cache:** `cache-scope` reads layers from that GitHub Actions cache scope and exports them to it (`mode=max`, ignoring cache service errors). Exporting a large build stage can take longer than the build, and a pull request's cache can't be read by the default branch, so with `cache-write: auto` (the default) only events other than `pull_request`, `pull_request_target` and `merge_group` export; pull requests read the default branch's cache. Set `cache-write: "true"` to also export on pull requests. Use one scope per image and architecture. Raw `cache-from` and `cache-to` lines are passed through as well.
 - **Labels:** `org.opencontainers.image.source` is always set first; extra `labels` (`KEY=VALUE`, one per line) are appended after it.
 - **Digest export:** setting `digest-artifact` when `push: "true"` exports the digest file and uploads it as a 1-day artifact ready for [`publish-image`](#publish-image).
 
@@ -243,6 +247,7 @@ steps:
 ```
 
 - **Checked first:** the image name, every digest and every tag are validated before anything is pushed.
+- **No builder needed:** it only calls `docker buildx imagetools`, which talks to the registry with the runner's preinstalled Buildx CLI, so the job doesn't need `docker/setup-buildx-action`.
 - **Outputs:** `digest`, and `reference` (`<image>:<first tag>@<digest>`, ready to deploy). Both also go to the job summary.
 - **Pull request comment:** with `comment-on-pr`, it keeps a single comment on that pull request, updated on every publish, with the latest reference. This needs the `pull-requests: write` permission.
 
@@ -272,6 +277,8 @@ steps:
 
   - run: docker buildx imagetools create -t "ghcr.io/owner/app:$VERSION" "ghcr.io/owner/app@${{ steps.rc.outputs.digest }}"
 ```
+
+Like `publish-image`, it and `docker buildx imagetools` only talk to the registry, so the job doesn't need `docker/setup-buildx-action`.
 
 - **Waiting:** when the candidate isn't there yet (a release dispatched right after a merge), it waits for that commit's run of `workflow`, up to `timeout-minutes` (60), then uses the candidate it published.
 - **Failing:** when that run fails, never starts, or passes without publishing, it says so, with a link to the run.

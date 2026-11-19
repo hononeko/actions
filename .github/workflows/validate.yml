@@ -760,6 +760,7 @@ jobs:
           context: build-image-fixture
           tags: build-image-test:local
           labels: org.example.extra=hello
+          cache-scope: build-image-test
 
       - name: Check image labels
         env:
