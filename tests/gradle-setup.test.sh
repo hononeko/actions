@@ -6,6 +6,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 java_script="$root/gradle-setup/resolve-version.sh"
 wrapper_script="$root/gradle-setup/wrapper-version.sh"
+cache_ro_script="$root/gradle-setup/resolve-cache-read-only.sh"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 failures=0
@@ -143,6 +144,35 @@ check_fails "latest in wrapper" "$wrapper_script" \
 check_fails "wildcard in wrapper" "$wrapper_script" \
   "$(project wildcard-wrapper '' 'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.x-bin.zip\n')" \
   "is not an exact version"
+
+# cache-read-only resolution
+check_cache_ro() {
+  local name=$1 expected=$2 input=$3 ref=$4 def=$5 actual
+  if ! actual=$(CACHE_READ_ONLY_INPUT=$input REF_NAME=$ref DEFAULT_BRANCH=$def "$cache_ro_script" 2>/dev/null); then
+    actual="failed"
+  fi
+  if [ "$actual" = "$expected" ]; then pass "$name"; else fail "$name: expected '$expected', got '$actual'"; fi
+}
+
+check_cache_ro_fails() {
+  local name=$1 expected=$2 input=$3 actual
+  if actual=$(CACHE_READ_ONLY_INPUT=$input REF_NAME=main DEFAULT_BRANCH=main "$cache_ro_script" 2>&1); then
+    fail "$name: expected a failure, got '$actual'"
+  elif [[ $actual == *"$expected"* ]]; then
+    pass "$name"
+  else
+    fail "$name: expected an error containing '$expected', got '$actual'"
+  fi
+}
+
+check_cache_ro "explicit true on default branch" "true" "true" "main" "main"
+check_cache_ro "explicit false on feature branch" "false" "false" "feat/x" "main"
+check_cache_ro "trimmed true" "true" "  true  " "main" "main"
+check_cache_ro "default on default branch" "false" "" "main" "main"
+check_cache_ro "default on feature branch" "true" "" "feat/x" "main"
+check_cache_ro "default without default branch" "false" "   " "feat/x" ""
+check_cache_ro_fails "invalid yes" "must be 'true' or 'false'" "yes"
+check_cache_ro_fails "invalid capitalized True" "must be 'true' or 'false'" "True"
 
 if [ "$failures" -gt 0 ]; then
   echo "$failures check(s) failed"
